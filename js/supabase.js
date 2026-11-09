@@ -1549,59 +1549,6 @@ window.CarePulseDB = {
     }
   },
 
-  async rescheduleAppointment(appointmentId, newDate, newTime) {
-    const sb = getSupabaseClient();
-    if (!sb) throw new Error('Supabase client not connected');
-
-    const cleanTime = newTime.substring(0, 5);
-    let updatePayload = {
-      appointment_date: newDate,
-      time_slot: cleanTime,
-      status: 'confirmed',
-      queue_status: 'waiting',
-      updated_at: new Date().toISOString()
-    };
-
-    let { data, error } = await sb
-      .from('appointments')
-      .update(updatePayload)
-      .eq('id', appointmentId)
-      .select()
-      .maybeSingle();
-
-    if (error && error.message && error.message.includes('time_slot')) {
-      delete updatePayload.time_slot;
-      updatePayload.appointment_time = cleanTime;
-      const retryRes = await sb
-        .from('appointments')
-        .update(updatePayload)
-        .eq('id', appointmentId)
-        .select()
-        .maybeSingle();
-      data = retryRes.data;
-      error = retryRes.error;
-    }
-
-    if (error) {
-      if (error.code === '23505') {
-        throw new Error('This time slot is already booked for this doctor. Please choose another time.');
-      }
-      throw error;
-    }
-
-    if (data && data.patient_id) {
-      await this.createNotification({
-        user_id: data.patient_id,
-        title: 'Appointment Rescheduled 📅',
-        message: `Your appointment has been rescheduled to ${newDate} at ${this.formatTime12Hour(cleanTime)}. Token: ${data.token_number}`,
-        type: 'appointment',
-        link: 'appointments.html'
-      });
-    }
-
-    return data;
-  },
-
   async cancelAppointment(appointmentId, reason = '') {
     const sb = getSupabaseClient();
     if (!sb) throw new Error('Supabase client not connected');
@@ -1874,7 +1821,9 @@ window.CarePulseDB = {
       try {
         const parsed = JSON.parse(cleanInput);
         if (parsed.id) targetId = parsed.id;
+        if (parsed.appointment_id) targetId = parsed.appointment_id;
         if (parsed.token) targetToken = parsed.token;
+        if (parsed.token_number) targetToken = parsed.token_number;
       } catch (e) {}
     }
 
