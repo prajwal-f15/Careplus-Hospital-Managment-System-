@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Appointments - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-plus" class="w-4 h-4"></i> Book Appointment</a>
+          <a href="appointments.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i> My Appointments</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="notifications.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="bell" class="w-4 h-4"></i> Notifications</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">My Consultation History</h1>
+        <p class="text-xs text-slate-500 mt-1">Track appointment statuses, digital QR passes, rescheduling, and post-consultation reviews.</p>
+      </div>
+
+      <a href="book-appointment.html" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 self-start sm:self-auto">
+        <i data-lucide="plus" class="w-4 h-4"></i> Book New Consultation
+      </a>
+    </div>
+
+    <!-- Active Waiting List Priority Slot Offers (Feature 6) -->
+    <div id="priority-slot-offers-container" class="space-y-3"></div>
+
+    <!-- Filter Radio Tabs -->
+    <div class="flex flex-wrap items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit shadow-sm text-xs font-bold text-slate-600">
+      <label class="cursor-pointer">
+        <input type="radio" name="appt-filter" value="all" checked class="hidden peer">
+        <span class="px-4 py-2 rounded-xl block peer-checked:bg-sky-600 peer-checked:text-white transition">All Consultations</span>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="appt-filter" value="upcoming" class="hidden peer">
+        <span class="px-4 py-2 rounded-xl block peer-checked:bg-sky-600 peer-checked:text-white transition">Upcoming & Pending</span>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="appt-filter" value="completed" class="hidden peer">
+        <span class="px-4 py-2 rounded-xl block peer-checked:bg-sky-600 peer-checked:text-white transition">Completed</span>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="appt-filter" value="cancelled" class="hidden peer">
+        <span class="px-4 py-2 rounded-xl block peer-checked:bg-sky-600 peer-checked:text-white transition">Cancelled</span>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="appt-filter" value="waiting" class="hidden peer">
+        <span class="px-4 py-2 rounded-xl block peer-checked:bg-sky-600 peer-checked:text-white transition">My Waiting List</span>
+      </label>
+    </div>
+
+    <!-- Appointments Cards List Container (rendered by patient.js) -->
+    <div id="patient-appointments-list" class="space-y-4">
+      <div class="p-12 text-center text-xs text-slate-400">Loading your consultations...</div>
+    </div>
+  </main>
+
+  <!-- QR PASS MODAL (Feature 1) -->
+  <div id="qr-pass-modal" class="modal-overlay">
+    <div class="modal-box p-6 space-y-4 max-w-sm text-center">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+          <i data-lucide="qr-code" class="w-4 h-4 text-sky-600"></i> Reception Security Pass
+        </h3>
+        <button onclick="document.getElementById('qr-pass-modal').classList.remove('active')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="py-2">
+        <div class="token-badge text-lg px-4 py-1.5 mx-auto w-fit" id="modal-qr-token">CARD-001</div>
+        <h4 id="modal-qr-doc-name" class="font-bold text-sm text-slate-800 mt-2">Dr. Rahul Sharma</h4>
+        <p id="modal-qr-schedule" class="text-xs text-slate-500">Scheduled on 2026-11-01 at 09:30 AM</p>
+      </div>
+
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
+        <div id="modal-qr-code-box" class="w-40 h-40 bg-white p-2 rounded-xl shadow-xs flex items-center justify-center"></div>
+        <div class="text-[10px] text-slate-400 font-mono mt-3" id="modal-qr-hash">CP-XXXXXXXX</div>
+      </div>
+
+      <p class="text-[11px] text-slate-500">Present this QR code pass at the hospital reception for fast 1-click check-in.</p>
+    </div>
+  </div>
+
+  <!-- RESCHEDULE APPOINTMENT MODAL (Feature 2) -->
+  <div id="reschedule-modal" class="modal-overlay">
+    <div class="modal-box p-6 sm:p-8 max-w-lg space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="calendar-clock" class="w-5 h-5 text-sky-600"></i>
+          Reschedule Consultation
+        </h3>
+        <button onclick="document.getElementById('reschedule-modal').classList.remove('active')" class="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600 space-y-1">
+        <div class="font-bold text-slate-900" id="reschedule-modal-doc-name">Dr. Specialist</div>
+        <div>Current Schedule: <span id="reschedule-modal-current-time" class="font-semibold text-slate-800">Date at Time</span></div>
+        <div class="text-[11px] text-slate-400">Select an available future date and 30-minute slot.</div>
+      </div>
+
+      <form id="reschedule-form" onsubmit="window.PatientApp.submitReschedule(event)" class="space-y-4">
+        <input type="hidden" id="reschedule-modal-appt-id">
+        <input type="hidden" id="reschedule-modal-doc-id">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">New Appointment Date</label>
+          <input type="date" id="reschedule-modal-date" required onchange="window.PatientApp.handleRescheduleDateChange(this.value)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Available 30-Minute Time Slots</label>
+          <div id="reschedule-modal-slots-container" class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+            <div class="col-span-full py-4 text-center text-[11px] text-slate-400">Please choose a date first</div>
+          </div>
+          <input type="hidden" id="reschedule-modal-selected-slot" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Reason for Rescheduling (Optional)</label>
+          <textarea id="reschedule-modal-reason" rows="2" placeholder="e.g. Schedule conflict, traveling..." class="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <button type="button" onclick="document.getElementById('reschedule-modal').classList.remove('active')" class="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+            Cancel
+          </button>
+          <button type="submit" id="reschedule-modal-submit-btn" class="w-1/2 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Confirm Reschedule
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- WRITE REVIEW MODAL (Only allowed for completed visits) -->
+  <div id="review-modal" class="modal-overlay">
+    <div class="modal-box p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+          <i data-lucide="star" class="w-4 h-4 text-amber-500 fill-amber-400"></i> Rate & Review Specialist
+        </h3>
+        <button onclick="document.getElementById('review-modal').classList.remove('active')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div>
+        <span class="text-xs text-slate-400">Doctor</span>
+        <h4 id="review-doctor-name" class="font-bold text-base text-slate-800">Dr. Specialization</h4>
+      </div>
+
+      <form id="submit-review-form" onsubmit="window.PatientApp.submitReview(event)" class="space-y-4">
+        <input type="hidden" id="review-appointment-id">
+        <input type="hidden" id="review-doctor-id">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Your Rating</label>
+          <div class="flex items-center gap-4 text-xs font-semibold text-slate-700">
+            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="review-rating" value="5" checked class="text-amber-500"> 5 ★ Excellent</label>
+            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="review-rating" value="4" class="text-amber-500"> 4 ★ Good</label>
+            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="review-rating" value="3" class="text-amber-500"> 3 ★ Average</label>
+            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="review-rating" value="2" class="text-amber-500"> 2 ★ Poor</label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Feedback Comment</label>
+          <textarea id="review-comment" required rows="3" placeholder="Share your experience regarding diagnosis, waiting time, and staff care..." class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onclick="document.getElementById('review-modal').classList.remove('active')" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow">
+            Submit Review
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/pdf-receipt.js"></script>
+  <script src="../js/chat.js"></script>
+  <script src="../js/appointments.js"></script>
+  <script src="../js/patient.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['patient']);
+    });
+  </script>
+</body>
+</html>

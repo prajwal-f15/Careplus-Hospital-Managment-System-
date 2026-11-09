@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Appointments - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- DOCTOR NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-sky-600 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-teal-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-teal-700">Doctor Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="queue.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="appointments.html" class="text-teal-600 flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="schedule.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="clock" class="w-4 h-4"></i> Schedule</a>
+          <a href="leaves.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-off" class="w-4 h-4"></i> Leaves</a>
+          <a href="patients.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="reviews.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="star" class="w-4 h-4"></i> Reviews</a>
+          <a href="profile.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="doctor-appointments-view" class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Appointment Requests & Consultations</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Accept or reject booking requests, initiate sessions, and record consultation notes.</p>
+      </div>
+
+      <!-- Actions & Filters -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="window.DoctorApp.openDoctorQRScannerModal()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="qr-code" class="w-4 h-4"></i> Scan Patient QR
+        </button>
+        <input type="date" id="filter-appt-date" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+        <select id="filter-appt-status" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending Requests</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="in-progress">In-Progress</option>
+          <option value="completed">Completed</option>
+          <option value="rejected">Rejected</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Appointments Master Table -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Token</th>
+              <th class="py-3.5 px-4">Patient Info</th>
+              <th class="py-3.5 px-4">Date & Time</th>
+              <th class="py-3.5 px-4">Visit Reason</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="doctor-appointments-table-body">
+            <!-- Rendered by doctor.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Doctor QR Scanner Modal -->
+  <div id="doctor-qr-scanner-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+            <i data-lucide="qr-code" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Scan Patient Slip QR Code</h3>
+            <p class="text-xs text-slate-400">Point camera at patient's printed/digital QR pass</p>
+          </div>
+        </div>
+        <button onclick="window.DoctorApp.closeDoctorQRScannerModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Live Camera Scanner Viewport -->
+      <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-teal-300 bg-slate-950 min-h-[260px] flex items-center justify-center">
+        <div id="doctor-qr-reader" class="w-full h-full"></div>
+      </div>
+
+      <!-- Manual Input Option -->
+      <div class="space-y-2 pt-2 border-t border-slate-100">
+        <label class="block text-xs font-bold text-slate-700">Or Verify by Token / Verification Code</label>
+        <div class="flex gap-2">
+          <input type="text" id="doctor-qr-manual-input" placeholder="e.g. CARD-001 or CP-VERIFY-..." class="flex-grow px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 uppercase">
+          <button onclick="window.DoctorApp.verifyManualDoctorToken()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-sm transition">
+            Verify
+          </button>
+        </div>
+      </div>
+
+      <!-- Result Container -->
+      <div id="doctor-qr-result-box" class="hidden"></div>
+    </div>
+  </div>
+
+  <!-- Direct Patient Call Modal -->
+  <div id="doctor-direct-call-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <i data-lucide="phone-call" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Direct Patient Call</h3>
+            <p class="text-xs text-slate-400">Call patient directly into consultation room</p>
+          </div>
+        </div>
+        <button onclick="window.DoctorApp.closeDirectCallModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Token Number</span>
+          <span id="direct-call-token" class="token-badge font-mono font-bold text-xs">APT-001</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Patient Name</span>
+          <span id="direct-call-patient" class="text-xs font-bold text-slate-800">John Doe</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Phone Contact</span>
+          <span id="direct-call-phone-text" class="text-xs font-semibold text-slate-700">Not provided</span>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <button id="direct-call-chime-btn" onclick="window.DoctorApp.triggerDirectCall()" class="w-full py-3.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs shadow-lg transition flex items-center justify-center gap-2">
+          <i data-lucide="bell-ring" class="w-4 h-4 animate-bounce"></i>
+          <span>Broadcast Room Alert & Audio Chime</span>
+        </button>
+
+        <a id="direct-call-phone-link" href="#" class="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2">
+          <i data-lucide="phone" class="w-4 h-4 text-sky-600"></i>
+          <span>Direct Voice Call (Phone Dialer)</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/pdf-receipt.js"></script>
+  <script src="../js/chat.js"></script>
+  <script src="../js/appointments.js"></script>
+  <script src="../js/doctor.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['doctor']);
+    });
+  </script>
+</body>
+</html>

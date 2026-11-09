@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Profile & Medical Records - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-plus" class="w-4 h-4"></i> Book Appointment</a>
+          <a href="appointments.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> My Appointments</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="notifications.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="bell" class="w-4 h-4"></i> Notifications</a>
+          <a href="profile.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-black text-slate-900">Patient Profile & Medical Info</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Keep your personal contact details, medical background, and emergency records up to date.</p>
+      </div>
+      <span class="px-3 py-1 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center gap-1.5">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Verified Patient Account
+      </span>
+    </div>
+
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+      
+      <!-- Profile Header Avatar Banner -->
+      <div class="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-100">
+        <div class="relative group">
+          <img id="avatar-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80" class="w-24 h-24 rounded-3xl object-cover border-4 border-sky-100 shadow-md">
+        </div>
+        <div class="space-y-1 text-center sm:text-left">
+          <h2 id="header-display-name" class="text-xl font-bold text-slate-900">Loading profile...</h2>
+          <p id="header-display-email" class="text-xs text-slate-500 font-mono">user@example.com</p>
+          <p class="text-xs text-slate-400">Choose an avatar preset or enter your custom image link below.</p>
+        </div>
+      </div>
+
+      <form id="patient-profile-form" class="space-y-6">
+        
+        <!-- SECTION 1: Personal Details -->
+        <div>
+          <h3 class="text-xs font-black uppercase tracking-wider text-sky-800 mb-3 flex items-center gap-1.5">
+            <i data-lucide="user" class="w-4 h-4"></i> Personal & Contact Information
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Full Legal Name *</label>
+              <input type="text" id="profile-name" required placeholder="Enter your full name" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+              <input type="email" id="profile-email" disabled class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-400 bg-slate-100 cursor-not-allowed">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Phone Number *</label>
+            <input type="tel" id="profile-phone" required placeholder="+91 9876543210" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Gender</label>
+            <select id="profile-gender" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Blood Group</label>
+            <select id="profile-blood" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Date of Birth</label>
+            <input type="date" id="profile-dob" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Residential Address</label>
+            <input type="text" id="profile-address" placeholder="Apartment, Street, City, Pincode" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+          </div>
+        </div>
+
+        <!-- SECTION 2: Emergency Contact -->
+        <div class="pt-4 border-t border-slate-100">
+          <h3 class="text-xs font-black uppercase tracking-wider text-rose-800 mb-3 flex items-center gap-1.5">
+            <i data-lucide="phone-call" class="w-4 h-4"></i> Emergency Contact Information
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Emergency Contact Person</label>
+              <input type="text" id="profile-emergency-name" placeholder="Parent / Spouse / Relative name" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Emergency Contact Number</label>
+              <input type="tel" id="profile-emergency-phone" placeholder="Emergency mobile number" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: Medical History & Allergies -->
+        <div class="pt-4 border-t border-slate-100">
+          <h3 class="text-xs font-black uppercase tracking-wider text-amber-800 mb-3 flex items-center gap-1.5">
+            <i data-lucide="heart-pulse" class="w-4 h-4"></i> Medical History & Clinical Notes
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Known Allergies (Medications / Food)</label>
+              <input type="text" id="profile-allergies" placeholder="e.g. Penicillin, Peanuts, Sulfa drugs, None" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Pre-existing Chronic Conditions</label>
+              <input type="text" id="profile-conditions" placeholder="e.g. Diabetes, Hypertension, Asthma, None" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white transition">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: Direct Profile Image Upload -->
+        <div class="pt-4 border-t border-slate-100">
+          <h3 class="text-xs font-black uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-1.5">
+            <i data-lucide="image" class="w-4 h-4"></i> Profile Photo (Direct Upload)
+          </h3>
+          <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 hover:border-sky-400 transition">
+            <div class="relative w-16 h-16 rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm flex-shrink-0">
+              <img id="upload-preview-thumb" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200" class="w-full h-full object-cover">
+            </div>
+            <div class="flex-1 text-center sm:text-left space-y-1">
+              <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <button type="button" onclick="document.getElementById('profile-file-input').click()" class="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5">
+                  <i data-lucide="upload" class="w-3.5 h-3.5 text-sky-600"></i> Choose Photo from Device
+                </button>
+                <button type="button" id="reset-avatar-btn" class="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition">
+                  Reset Default
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-400">Supported formats: JPG, PNG, WebP (Auto-optimized)</p>
+            </div>
+            <input type="file" id="profile-file-input" accept="image/*" class="hidden">
+            <input type="hidden" id="profile-image">
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-[11px] text-slate-400">All updates sync with live database & your active session.</span>
+          <button type="submit" id="save-profile-btn" class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 transition flex items-center gap-2">
+            <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/patient.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['patient']);
+    });
+  </script>
+</body>
+</html>

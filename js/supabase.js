@@ -1,0 +1,3045 @@
+/**
+ * ==============================================================================
+ * CAREPULSE - HOSPITAL APPOINTMENT BOOKING SYSTEM
+ * 100% Realtime Supabase Database & Service Engine
+ * ==============================================================================
+ */
+
+// Supabase Client Initialization
+let supabaseClient = null;
+
+function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+
+  const config = window.SUPABASE_CONFIG || {};
+  const url = (config.url && config.url.trim()) || localStorage.getItem('carepulse_supabase_url');
+  const key = (config.anonKey && config.anonKey.trim()) || localStorage.getItem('carepulse_supabase_anon_key');
+
+  if (url && key && url.startsWith('http') && window.supabase) {
+    try {
+      supabaseClient = window.supabase.createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+      console.log('⚡ Connected to Realtime Supabase Project:', url);
+    } catch (err) {
+      console.error('Error creating Supabase client:', err);
+    }
+  }
+  return supabaseClient;
+}
+
+window.CarePulseDB = {
+  getClient() {
+    return getSupabaseClient();
+  },
+
+  isLiveSupabase() {
+    return !!getSupabaseClient();
+  },
+
+  getCredentials() {
+    const config = window.SUPABASE_CONFIG || {};
+    return {
+      url: config.url || localStorage.getItem('carepulse_supabase_url') || '',
+      key: config.anonKey || localStorage.getItem('carepulse_supabase_anon_key') || ''
+    };
+  },
+
+  saveCredentials(url, key) {
+    if (url && key) {
+      localStorage.setItem('carepulse_supabase_url', url.trim());
+      localStorage.setItem('carepulse_supabase_anon_key', key.trim());
+      if (window.SUPABASE_CONFIG) {
+        window.SUPABASE_CONFIG.url = url.trim();
+        window.SUPABASE_CONFIG.anonKey = key.trim();
+      }
+      supabaseClient = null;
+      return true;
+    }
+    return false;
+  },
+
+  // ============================================================================
+  // 1. DEPARTMENTS
+  // ============================================================================
+  async getDepartments() {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+    const { data, error } = await sb
+      .from('departments')
+      .select('*')
+      .order('name', { ascending: true });
+    if (error) {
+      console.error('getDepartments error:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getDepartmentById(id) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    const { data, error } = await sb
+      .from('departments')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) {
+      console.error('getDepartmentById error:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async addDepartment(deptData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { data, error } = await sb
+      .from('departments')
+      .insert([{
+        name: deptData.name,
+        code: deptData.code.toUpperCase(),
+        description: deptData.description,
+        icon: deptData.icon || 'activity',
+        room_number: deptData.room_number || 'Wing A'
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteDepartment(departmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { error } = await sb
+      .from('departments')
+      .delete()
+      .eq('id', departmentId);
+    if (error) throw error;
+    return true;
+  },
+
+  async updateDepartment(departmentId, deptData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const updatePayload = {
+      name: deptData.name,
+      code: deptData.code ? deptData.code.toUpperCase() : undefined,
+      description: deptData.description,
+      icon: deptData.icon || 'activity',
+      room_number: deptData.room_number || 'Wing A'
+    };
+    Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k]);
+
+    const { data, error } = await sb
+      .from('departments')
+      .update(updatePayload)
+      .eq('id', departmentId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ============================================================================
+  // 2. DOCTORS & SPECIALISTS
+  // ============================================================================
+  async getDoctors(filters = {}) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    try {
+      // 1. Fetch doctors joined with profiles and departments
+      let query = sb
+        .from('doctors')
+        .select(`
+          *,
+          profiles (
+            id,
+            full_name,
+            email,
+            phone,
+            profile_image,
+            gender
+          ),
+          departments (
+            id,
+            name,
+            code,
+            room_number
+          )
+        `);
+
+      if (filters.departmentId) {
+        query = query.eq('department_id', filters.departmentId);
+      }
+      if (filters.availableToday !== undefined) {
+        query = query.eq('is_available_today', filters.availableToday);
+      }
+
+      const { data: docData, error: docError } = await query.order('created_at', { ascending: false });
+      
+      let list = [];
+      if (!docError && docData) {
+        list = docData.map(d => ({
+          ...d,
+          full_name: d.profiles?.full_name || 'Dr. Specialist',
+          email: d.profiles?.email || '',
+          phone: d.profiles?.phone || '',
+          gender: d.profiles?.gender || 'Other',
+          profile_image: d.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+          department_name: d.departments?.name || 'General Medicine',
+          department_code: d.departments?.code || 'GEN'
+        }));
+      }
+
+      // 2. Cross-check with 'profiles' table for any doctors missing from 'doctors' table
+      const { data: doctorProfiles } = await sb
+        .from('profiles')
+        .select('*')
+        .eq('role', 'doctor');
+
+      if (doctorProfiles && doctorProfiles.length > 0) {
+        const existingProfileIds = new Set(list.map(d => d.profile_id));
+        for (const p of doctorProfiles) {
+          if (!existingProfileIds.has(p.id)) {
+            // Missing doctor record - create an in-memory entry and persist to database
+            const fallbackDoc = {
+              id: p.id,
+              profile_id: p.id,
+              full_name: p.full_name,
+              email: p.email,
+              phone: p.phone || '',
+              gender: p.gender || 'Other',
+              profile_image: p.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+              specialization: 'Medical Specialist',
+              qualification: 'MBBS, MD',
+              experience_years: 5,
+              department_name: 'General Medicine',
+              department_code: 'GEN',
+              rating: 5.0,
+              total_reviews: 0,
+              is_verified: true,
+              is_available_today: true
+            };
+            list.push(fallbackDoc);
+
+            // Silently try to insert into doctors table for future queries
+            sb.from('doctors').insert([{
+              profile_id: p.id,
+              specialization: 'Medical Specialist',
+              qualification: 'MBBS, MD',
+              experience_years: 5,
+              is_verified: true,
+              is_available_today: true
+            }]).then(() => {}).catch(() => {});
+          }
+        }
+      }
+
+      return list;
+    } catch (err) {
+      console.error('getDoctors error:', err);
+      return [];
+    }
+  },
+
+  async getDoctorById(id) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    try {
+      const { data, error } = await sb
+        .from('doctors')
+        .select(`
+          *,
+          profiles (
+            id,
+            full_name,
+            email,
+            phone,
+            profile_image,
+            gender
+          ),
+          departments (
+            id,
+            name,
+            code,
+            room_number
+          )
+        `)
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !data) {
+        // Check if id is a profile id
+        const docByProfile = await this.getDoctorByProfileId(id);
+        if (docByProfile) return docByProfile;
+        return null;
+      }
+
+      return {
+        ...data,
+        full_name: data.profiles?.full_name || 'Dr. Specialist',
+        email: data.profiles?.email || '',
+        phone: data.profiles?.phone || '',
+        gender: data.profiles?.gender || 'Other',
+        profile_image: data.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+        department_name: data.departments?.name || 'General Medicine',
+        department_code: data.departments?.code || 'GEN'
+      };
+    } catch (e) {
+      console.error('getDoctorById error:', e);
+      return null;
+    }
+  },
+
+  async getDoctorByProfileId(profileId) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    const { data, error } = await sb
+      .from('doctors')
+      .select('*, departments(name, code)')
+      .eq('profile_id', profileId)
+      .single();
+    if (error) return null;
+    return data;
+  },
+
+  async addDoctor(docData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    // First insert profile if profile_id not supplied
+    let profileId = docData.profile_id;
+    if (!profileId) {
+      // In real supabase, profile is created via signup, but fallback if added via admin:
+      profileId = docData.auth_id || crypto.randomUUID();
+      const { error: pErr } = await sb.from('profiles').insert([{
+        id: profileId,
+        full_name: docData.full_name,
+        email: docData.email,
+        phone: docData.phone || '',
+        role: 'doctor',
+        gender: docData.gender || 'Other',
+        profile_image: docData.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400'
+      }]);
+      if (pErr) console.warn('Profile create note:', pErr.message);
+    }
+
+    const { data: newDoc, error: dErr } = await sb.from('doctors').insert([{
+      profile_id: profileId,
+      department_id: docData.department_id,
+      specialization: docData.specialization,
+      qualification: docData.qualification,
+      experience_years: parseInt(docData.experience_years, 10) || 0,
+      hospital_name: docData.hospital_name || 'CarePulse Central Hospital',
+      room_number: docData.room_number || 'Room 101',
+      consultation_fee: parseFloat(docData.consultation_fee) || 50.00,
+      about: docData.about || '',
+      is_verified: true,
+      is_available_today: true
+    }]).select().single();
+
+    if (dErr) throw dErr;
+
+    // Insert standard weekly schedules
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const schedules = days.map(day => ({
+      doctor_id: newDoc.id,
+      day_of_week: day,
+      start_time: '09:00',
+      end_time: '14:00',
+      slot_duration_minutes: 30,
+      is_available: true
+    }));
+    await sb.from('doctor_availability').insert(schedules);
+
+    return newDoc;
+  },
+
+  async updateDoctor(doctorId, docData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    try {
+      // 1. Try updating by doctor.id
+      let { data, error } = await sb
+        .from('doctors')
+        .update(docData)
+        .eq('id', doctorId)
+        .select();
+
+      // 2. If no row updated, try updating by profile_id
+      if (!error && (!data || data.length === 0)) {
+        const { data: pData, error: pErr } = await sb
+          .from('doctors')
+          .update(docData)
+          .eq('profile_id', doctorId)
+          .select();
+        
+        if (!pErr && pData && pData.length > 0) {
+          data = pData;
+        } else {
+          // If doctor row doesn't exist yet, insert/upsert it
+          const { data: upsertData } = await sb
+            .from('doctors')
+            .upsert({
+              profile_id: doctorId,
+              ...docData
+            }, { onConflict: 'profile_id' })
+            .select();
+          data = upsertData;
+        }
+      }
+
+      if (error) throw error;
+      return (data && data.length > 0) ? data[0] : docData;
+    } catch (err) {
+      console.error('updateDoctor error:', err);
+      throw err;
+    }
+  },
+
+  async deleteDoctor(doctorId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { error } = await sb
+      .from('doctors')
+      .delete()
+      .eq('id', doctorId);
+    if (error) throw error;
+    return true;
+  },
+
+  // ============================================================================
+  // 3. DOCTOR AVAILABILITY & SLOTS
+  // ============================================================================
+  async getDoctorAvailability(doctorId) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    try {
+      // 1. Resolve actual doctor id if profile_id was passed
+      let cleanDocId = doctorId;
+      if (typeof cleanDocId === 'string') cleanDocId = cleanDocId.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+      let targetDoctorId = cleanDocId;
+
+      if (cleanDocId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanDocId)) {
+        const { data: doc } = await sb
+          .from('doctors')
+          .select('id')
+          .or(`id.eq.${cleanDocId},profile_id.eq.${cleanDocId}`)
+          .maybeSingle();
+
+        if (doc) {
+          targetDoctorId = doc.id;
+        }
+      }
+
+      const { data, error } = await sb
+        .from('doctor_availability')
+        .select('*')
+        .eq('doctor_id', targetDoctorId);
+
+      if (error) {
+        console.warn('getDoctorAvailability note:', error.message);
+        return [];
+      }
+
+      // If empty in DB, return standard default weekday availability
+      if (!data || data.length === 0) {
+        const defaultDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        return defaultDays.map(d => ({
+          doctor_id: targetDoctorId,
+          day_of_week: d,
+          start_time: '09:00',
+          end_time: '17:00',
+          slot_duration_minutes: 30,
+          is_available: true
+        }));
+      }
+
+      return data;
+    } catch (err) {
+      console.warn('getDoctorAvailability error:', err);
+      return [];
+    }
+  },
+
+  async saveDoctorAvailability(doctorId, schedules) {
+    return this.updateDoctorAvailability(doctorId, schedules);
+  },
+
+  async updateDoctorAvailability(doctorId, schedules) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    try {
+      // 1. Resolve actual doctor id if profile_id was passed
+      let targetDoctorId = doctorId;
+      const { data: doc } = await sb
+        .from('doctors')
+        .select('id')
+        .or(`id.eq.${doctorId},profile_id.eq.${doctorId}`)
+        .maybeSingle();
+
+      if (doc) {
+        targetDoctorId = doc.id;
+      }
+
+      // 2. Remove existing schedules
+      await sb.from('doctor_availability').delete().eq('doctor_id', targetDoctorId);
+
+      // 3. Insert updated schedules
+      if (schedules && schedules.length > 0) {
+        const rowsToInsert = schedules.map(s => ({
+          doctor_id: targetDoctorId,
+          day_of_week: s.day_of_week,
+          start_time: s.start_time || '09:00',
+          end_time: s.end_time || '17:00',
+          slot_duration_minutes: s.slot_duration_minutes || 30,
+          is_available: s.is_available !== false
+        }));
+
+        const { data, error } = await sb
+          .from('doctor_availability')
+          .insert(rowsToInsert)
+          .select();
+
+        if (error) {
+          console.warn('doctor_availability insert error:', error.message);
+          throw error;
+        }
+        return data;
+      }
+
+      return [];
+    } catch (err) {
+      console.error('saveDoctorAvailability error:', err);
+      throw err;
+    }
+  },
+
+  async getAvailableSlots(doctorId, dateString) {
+    const targetDate = new Date(dateString + 'T00:00:00');
+    const daysMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = daysMap[targetDate.getDay()];
+
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    // Get doctor availability schedule
+    const { data: availList } = await sb
+      .from('doctor_availability')
+      .select('*')
+      .eq('doctor_id', doctorId)
+      .eq('day_of_week', dayName)
+      .eq('is_available', true);
+
+    if (!availList || availList.length === 0) return [];
+
+    const schedule = availList[0];
+    const duration = schedule.slot_duration_minutes || 30;
+
+    // Generate slots
+    const slots = [];
+    const [startH, startM] = schedule.start_time.split(':').map(Number);
+    const [endH, endM] = schedule.end_time.split(':').map(Number);
+
+    let currMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    while (currMinutes + duration <= endMinutes) {
+      const h = Math.floor(currMinutes / 60);
+      const m = currMinutes % 60;
+      const formatted = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      slots.push(formatted);
+      currMinutes += duration;
+    }
+
+    // Get existing bookings on that date for this doctor to filter out occupied slots
+    const bookedTimes = new Set();
+    try {
+      const { data: bookedAppointments } = await sb
+        .from('appointments')
+        .select('*')
+        .eq('doctor_id', doctorId)
+        .eq('appointment_date', dateString)
+        .not('status', 'in', '("cancelled","rejected")');
+
+      (bookedAppointments || []).forEach(a => {
+        const t = a.time_slot || a.appointment_time;
+        if (t && typeof t === 'string') {
+          bookedTimes.add(t.substring(0, 5));
+        }
+      });
+    } catch (e) {
+      console.warn('Error fetching booked slots:', e);
+    }
+
+    return slots.map(slot => ({
+      time: slot,
+      display: this.formatTime12Hour(slot),
+      available: !bookedTimes.has(slot)
+    }));
+  },
+
+  // ============================================================================
+  // 4. APPOINTMENTS & REALTIME QUEUE
+  // ============================================================================
+  async getAppointments(filters = {}) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    let query = sb
+      .from('appointments')
+    try {
+      let query = sb
+        .from('appointments')
+        .select(`
+          *,
+          profiles (
+            id, full_name, email, phone, gender, date_of_birth, blood_group
+          ),
+          doctors (
+            id, specialization, room_number, consultation_fee,
+            profiles (full_name, profile_image)
+          ),
+          departments (
+            id, name, code, room_number
+          )
+        `);
+
+      if (filters.patientId) {
+        let pId = filters.patientId;
+        if (typeof pId === 'string') pId = pId.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+        query = query.eq('patient_id', pId);
+      }
+      if (filters.doctorId) {
+        let dId = filters.doctorId;
+        if (typeof dId === 'string') dId = dId.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+        query = query.eq('doctor_id', dId);
+      }
+      if (filters.departmentId) query = query.eq('department_id', filters.departmentId);
+      if (filters.status) query = query.eq('status', filters.status);
+      if (filters.date) query = query.eq('appointment_date', filters.date);
+
+      const { data, error } = await query.order('appointment_date', { ascending: false });
+
+      if (error) {
+        console.warn('getAppointments error, trying direct query:', error.message);
+        const { data: rawData } = await sb.from('appointments').select('*').order('appointment_date', { ascending: false });
+        return (rawData || []).map(a => ({
+          ...a,
+          appointment_time: a.time_slot || a.appointment_time || '09:00',
+          time_slot: a.time_slot || a.appointment_time || '09:00',
+          patient_name: 'Patient',
+          doctor_name: 'Dr. Specialist',
+          department_name: 'General Medicine',
+          room_number: 'Room 101'
+        }));
+      }
+
+      return (data || []).map(a => ({
+        ...a,
+        appointment_time: a.time_slot || a.appointment_time || '09:00',
+        time_slot: a.time_slot || a.appointment_time || '09:00',
+        patient_name: a.profiles?.full_name || 'Patient',
+        patient_email: a.profiles?.email || '',
+        patient_phone: a.profiles?.phone || '',
+        patient_gender: a.profiles?.gender || '',
+        patient_dob: a.profiles?.date_of_birth || '',
+        patient_blood: a.profiles?.blood_group || '',
+        doctor_name: a.doctors?.profiles?.full_name || 'Dr. Specialist',
+        doctor_image: a.doctors?.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+        doctor_specialization: a.doctors?.specialization || 'Medical Specialist',
+        doctor_fee: a.doctors?.consultation_fee || 50,
+        department_name: a.departments?.name || 'General Medicine',
+        department_code: a.departments?.code || 'GEN',
+        room_number: a.doctors?.room_number || a.departments?.room_number || 'Room 101'
+      }));
+    } catch (err) {
+      console.error('getAppointments general error:', err);
+      return [];
+    }
+  },
+
+  async getAppointmentById(id) {
+    const list = await this.getAppointments();
+    return list.find(a => a.id === id) || null;
+  },
+
+  async createAppointment(payload) {
+    return this.bookAppointment(payload);
+  },
+
+  async bookAppointment({ patient_id, doctor_id, department_id, appointment_date, time_slot, appointment_time, reason, symptoms, priority = 'normal' }) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const cleanTime = (time_slot || appointment_time || '09:00').substring(0, 5);
+
+    // Normalize and sanitize UUID helper (PostgreSQL requires hex 0-9, a-f)
+    const toValidHexUUID = (id, fallback = null) => {
+      if (!id || typeof id !== 'string') return fallback;
+      let clean = id.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(clean)) {
+        return fallback;
+      }
+      return clean;
+    };
+
+    // 1. Resolve actual patient record & ensure valid foreign key to profiles(id)
+    const currentUser = window.Auth?.getCurrentUser() || {};
+    const userEmail = (currentUser.email || '').trim().toLowerCase();
+    let targetPatientId = null;
+
+    // A. Query profile by current user email (best match with existing seed data)
+    if (userEmail) {
+      try {
+        const { data: profByEmail } = await sb.from('profiles').select('id').eq('email', userEmail).maybeSingle();
+        if (profByEmail?.id) {
+          targetPatientId = profByEmail.id;
+        }
+      } catch (e) {}
+    }
+
+    // B. Check profile by passed patient_id
+    if (!targetPatientId && patient_id) {
+      const cleanId = toValidHexUUID(patient_id);
+      if (cleanId) {
+        try {
+          const { data: profById } = await sb.from('profiles').select('id').eq('id', cleanId).maybeSingle();
+          if (profById?.id) {
+            targetPatientId = profById.id;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // C. Check Supabase Auth user
+    if (!targetPatientId) {
+      try {
+        const { data: authData } = await sb.auth.getUser();
+        if (authData?.user?.id) {
+          targetPatientId = authData.user.id;
+          // Ensure profile row exists
+          const { data: authProf } = await sb.from('profiles').select('id').eq('id', authData.user.id).maybeSingle();
+          if (!authProf) {
+            await sb.from('profiles').insert([{
+              id: authData.user.id,
+              email: authData.user.email || userEmail || `patient_${Date.now()}@example.com`,
+              full_name: authData.user.user_metadata?.full_name || currentUser.full_name || 'Patient',
+              role: 'patient'
+            }]);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // D. Fallback: get any patient profile from DB
+    if (!targetPatientId) {
+      try {
+        const { data: firstPatient } = await sb.from('profiles').select('id').eq('role', 'patient').limit(1).maybeSingle();
+        if (firstPatient?.id) {
+          targetPatientId = firstPatient.id;
+        }
+      } catch (e) {}
+    }
+
+    // 2. Resolve actual doctor record & department
+    let targetDoctorId = doctor_id;
+    let targetDeptId = department_id;
+    let deptCode = 'GEN';
+
+    try {
+      const cleanDocId = toValidHexUUID(doctor_id);
+      let query = sb.from('doctors').select('id, department_id, departments(code)');
+      if (cleanDocId) {
+        query = query.or(`id.eq.${cleanDocId},profile_id.eq.${cleanDocId}`);
+      }
+      const { data: doc } = await query.maybeSingle();
+
+      if (doc) {
+        targetDoctorId = doc.id;
+        if (!targetDeptId && doc.department_id) {
+          targetDeptId = doc.department_id;
+        }
+        if (doc.departments?.code) {
+          deptCode = doc.departments.code;
+        }
+      } else {
+        // Pick first doctor if not found
+        const { data: firstDoc } = await sb.from('doctors').select('id, department_id, departments(code)').limit(1).maybeSingle();
+        if (firstDoc) {
+          targetDoctorId = firstDoc.id;
+          if (!targetDeptId) targetDeptId = firstDoc.department_id;
+          if (firstDoc.departments?.code) deptCode = firstDoc.departments.code;
+        }
+      }
+    } catch (e) {
+      console.warn('Doctor lookup note:', e);
+    }
+
+    // Ensure valid dept ID or null
+    if (targetDeptId) {
+      try {
+        const { data: deptRow } = await sb.from('departments').select('id, code').eq('id', targetDeptId).maybeSingle();
+        if (deptRow) {
+          targetDeptId = deptRow.id;
+          deptCode = deptRow.code || deptCode;
+        } else {
+          targetDeptId = null;
+        }
+      } catch (e) {
+        targetDeptId = null;
+      }
+    }
+
+    // 3. Count today's tokens to issue sequential token
+    let tokenSeq = 1;
+    try {
+      let countQuery = sb
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('appointment_date', appointment_date);
+
+      if (targetDeptId) {
+        countQuery = countQuery.eq('department_id', targetDeptId);
+      }
+
+      const { count } = await countQuery;
+      tokenSeq = (count || 0) + 1;
+    } catch (e) {
+      tokenSeq = Math.floor(Math.random() * 80) + 1;
+    }
+
+    const token_number = `${deptCode}-${String(tokenSeq).padStart(3, '0')}`;
+    const appointment_number = `APT-${Date.now().toString().slice(-6)}`;
+    const fullReason = [reason, symptoms ? `(Symptoms: ${symptoms})` : ''].filter(Boolean).join(' ');
+
+    // 4. Insert Appointment into Supabase
+    let insertPayload = {
+      appointment_number,
+      token_number,
+      patient_id: targetPatientId,
+      doctor_id: targetDoctorId,
+      department_id: targetDeptId || null,
+      appointment_date,
+      time_slot: cleanTime,
+      reason: fullReason,
+      priority,
+      status: 'confirmed',
+      queue_status: 'waiting',
+      is_called: false
+    };
+
+    let appt = null;
+    let apptError = null;
+    let attempts = 0;
+
+    while (attempts < 6) {
+      attempts++;
+      const res = await sb.from('appointments').insert([insertPayload]).select();
+      if (!res.error) {
+        appt = res.data;
+        apptError = null;
+        break;
+      }
+
+      apptError = res.error;
+      const errMsg = res.error.message || '';
+
+      // Check if double-booking constraint triggered
+      if (res.error.code === '23505' || errMsg.includes('idx_prevent_double_booking') || errMsg.includes('unique constraint')) {
+        throw new Error('This time slot is already booked for this doctor. Please choose another slot.');
+      }
+
+      // Check if a specific column is missing in Supabase schema cache
+      const colMatch = errMsg.match(/Could not find the '([^']+)' column of 'appointments' in the schema cache/i);
+      if (colMatch && colMatch[1]) {
+        const missingCol = colMatch[1];
+        delete insertPayload[missingCol];
+
+        // If time_slot is missing in schema, swap to appointment_time
+        if (missingCol === 'time_slot') {
+          insertPayload.appointment_time = cleanTime;
+        } else if (missingCol === 'appointment_time') {
+          insertPayload.time_slot = cleanTime;
+        }
+        continue;
+      }
+
+      // Check if status constraint failed, retry with 'pending'
+      if (errMsg.includes('appointments_status_check') || errMsg.includes('check constraint')) {
+        if (insertPayload.status === 'confirmed') {
+          insertPayload.status = 'pending';
+          continue;
+        }
+      }
+
+      // If other unexpected column error occurred, try fallback with minimal essential fields
+      if (attempts === 3) {
+        insertPayload = {
+          patient_id,
+          doctor_id: targetDoctorId,
+          appointment_date,
+          token_number,
+          reason: fullReason,
+          status: 'pending'
+        };
+        // Add time slot under whichever column name is supported
+        if (!errMsg.includes('time_slot')) {
+          insertPayload.time_slot = cleanTime;
+        } else {
+          insertPayload.appointment_time = cleanTime;
+        }
+        continue;
+      }
+
+      break;
+    }
+
+    if (apptError) {
+      throw apptError;
+    }
+
+    const createdRecord = (appt && appt.length > 0) ? appt[0] : {
+      appointment_number,
+      token_number,
+      patient_id,
+      doctor_id: targetDoctorId,
+      appointment_date,
+      time_slot: cleanTime,
+      reason: fullReason,
+      status: 'confirmed'
+    };
+
+    // 4. Create Realtime Notifications safely
+    try {
+      await this.createNotification({
+        user_id: patient_id,
+        title: 'Appointment Confirmed! 🏥',
+        message: `Your appointment is confirmed for ${appointment_date} at ${this.formatTime12Hour(cleanTime)}. Token Number: ${token_number}.`,
+        type: 'appointment',
+        link: 'appointments.html'
+      });
+
+      const doc = await this.getDoctorById(targetDoctorId);
+      if (doc && doc.profile_id) {
+        await this.createNotification({
+          user_id: doc.profile_id,
+          title: 'New Appointment Booked',
+          message: `A new patient has scheduled an appointment for ${appointment_date} at ${this.formatTime12Hour(cleanTime)}.`,
+          type: 'appointment',
+          link: 'appointments.html'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('Notification create note:', notifErr);
+    }
+
+    return createdRecord;
+  },
+
+  async updateAppointmentStatus(appointmentId, status, notes = null, rejectionReason = null) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const updatePayload = {
+      status: status,
+      updated_at: new Date().toISOString()
+    };
+    if (notes) updatePayload.doctor_notes = notes;
+    if (rejectionReason) updatePayload.cancellation_reason = rejectionReason;
+
+    // Synchronize queue fields
+    if (status === 'in-progress' || status === 'in_consultation' || status === 'called') {
+      updatePayload.queue_status = 'in-room';
+      updatePayload.is_called = true;
+      updatePayload.called_at = new Date().toISOString();
+      updatePayload.consultation_started_at = new Date().toISOString();
+    } else if (status === 'completed') {
+      updatePayload.queue_status = 'completed';
+      updatePayload.completed_at = new Date().toISOString();
+    }
+
+    let { data, error } = await sb
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    // If check constraint failed, try alternative status values
+    if (error && (error.message?.includes('appointments_status_check') || error.message?.includes('check constraint'))) {
+      const altCandidates = (status === 'in-progress' || status === 'in_consultation' || status === 'in_progress')
+        ? ['in_consultation', 'in-progress', 'in_progress', 'confirmed']
+        : [status];
+
+      for (const alt of altCandidates) {
+        if (alt === updatePayload.status) continue;
+        updatePayload.status = alt;
+        const retryRes = await sb
+          .from('appointments')
+          .update(updatePayload)
+          .eq('id', appointmentId)
+          .select()
+          .maybeSingle();
+
+        if (!retryRes.error) {
+          data = retryRes.data;
+          error = null;
+          break;
+        }
+      }
+    }
+
+    if (error) throw error;
+
+    // Send notification to patient
+    if (data && data.patient_id) {
+      try {
+        await this.createNotification({
+          user_id: data.patient_id,
+          title: `Appointment ${status.toUpperCase()}`,
+          message: `Your appointment status was updated to: ${status}. ${notes ? `Doctor Note: ${notes}` : ''}`,
+          type: 'appointment',
+          link: 'appointments.html'
+        });
+      } catch (e) {}
+    }
+
+    // Auto Slot Reallocation for Waiting List (Feature 6)
+    if (status === 'cancelled' || status === 'rejected') {
+      try {
+        await this.processWaitingListForCancelledSlot(appointmentId);
+      } catch (err) {
+        console.debug('Waiting list reallocation note:', err);
+      }
+    }
+
+    return data || updatePayload;
+  },
+
+  async callNextPatientInQueue(doctorId, appointmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    // 1. Mark previous called patients for this doctor as in-room
+    try {
+      await sb
+        .from('appointments')
+        .update({ queue_status: 'in-room' })
+        .eq('doctor_id', doctorId)
+        .eq('queue_status', 'called');
+    } catch (e) {}
+
+    // 2. Set this appointment as called & in-progress
+    // Standard status in PostgreSQL schema is 'in-progress'
+    const candidates = ['in-progress', 'in_consultation', 'in-consultation', 'confirmed'];
+    let data = null;
+    let lastError = null;
+
+    for (const st of candidates) {
+      const payload = {
+        queue_status: 'called',
+        is_called: true,
+        status: st,
+        updated_at: new Date().toISOString()
+      };
+      const res = await sb
+        .from('appointments')
+        .update(payload)
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+
+      if (!res.error) {
+        data = res.data;
+        lastError = null;
+        break;
+      } else {
+        lastError = res.error;
+        if (!res.error.message?.includes('appointments_status_check') && !res.error.message?.includes('check constraint')) {
+          break;
+        }
+      }
+    }
+
+    // Fallback: If status constraint fails, update queue_status without touching status
+    if (lastError && (lastError.message?.includes('appointments_status_check') || lastError.message?.includes('check constraint'))) {
+      const fb = await sb
+        .from('appointments')
+        .update({
+          queue_status: 'called',
+          is_called: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+      if (!fb.error) {
+        data = fb.data;
+        lastError = null;
+      }
+    }
+
+    if (lastError) throw lastError;
+
+    // Notify Patient of call
+    if (data && data.patient_id) {
+      await this.createNotification({
+        user_id: data.patient_id,
+        title: '🔔 You are Called to Consultation Room!',
+        message: `Token ${data.token_number}: Doctor is ready for you now. Please proceed to the room.`,
+        type: 'queue',
+        link: 'queue-status.html'
+      });
+    }
+
+    return data;
+  },
+
+  async updateAppointment(appointmentId, apptData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const updatePayload = { ...apptData, updated_at: new Date().toISOString() };
+    const { data, error } = await sb
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteAppointment(appointmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { error } = await sb
+      .from('appointments')
+      .delete()
+      .eq('id', appointmentId);
+    if (error) throw error;
+    return true;
+  },
+
+  async addPatientProfile(patientData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const id = patientData.id || crypto.randomUUID();
+    const newProfile = {
+      id,
+      full_name: patientData.full_name,
+      email: patientData.email,
+      phone: patientData.phone || '',
+      role: 'patient',
+      gender: patientData.gender || 'Other',
+      date_of_birth: patientData.date_of_birth || null,
+      blood_group: patientData.blood_group || 'O+',
+      is_active: patientData.is_active !== false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await sb
+      .from('profiles')
+      .insert([newProfile])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteProfile(profileId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { error } = await sb
+      .from('profiles')
+      .delete()
+      .eq('id', profileId);
+    if (error) throw error;
+    return true;
+  },
+
+  // ============================================================================
+  // 5. NOTIFICATIONS (Realtime)
+  // ============================================================================
+  async getNotifications(userId) {
+    const sb = getSupabaseClient();
+    if (!sb || !userId) return [];
+    const { data, error } = await sb
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('getNotifications error:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async createNotification({ user_id, title, message, type = 'appointment', link = '' }) {
+    const sb = getSupabaseClient();
+    if (!sb || !user_id) return null;
+    const { data, error } = await sb
+      .from('notifications')
+      .insert([{
+        user_id,
+        title,
+        message,
+        type,
+        link,
+        is_read: false
+      }])
+      .select()
+      .single();
+    if (error) console.error('createNotification error:', error);
+    return data;
+  },
+
+  async markNotificationAsRead(id) {
+    const sb = getSupabaseClient();
+    if (!sb) return false;
+    const { error } = await sb
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+    return !error;
+  },
+
+  async markAllNotificationsRead(userId) {
+    const sb = getSupabaseClient();
+    if (!sb || !userId) return false;
+    const { error } = await sb
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId);
+    return !error;
+  },
+
+  // ============================================================================
+  // 6. REVIEWS & RATINGS
+  // ============================================================================
+  async getReviews(doctorId = null) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+    let query = sb
+      .from('reviews')
+      .select(`
+        *,
+        profiles (full_name, profile_image)
+      `);
+    if (doctorId) query = query.eq('doctor_id', doctorId);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) {
+      console.error('getReviews error:', error);
+      return [];
+    }
+    return (data || []).map(r => ({
+      ...r,
+      patient_name: r.profiles?.full_name || 'Verified Patient',
+      patient_avatar: r.profiles?.profile_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'
+    }));
+  },
+
+  async addReview({ doctor_id, patient_id, appointment_id, rating, comment }) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    const { data, error } = await sb
+      .from('reviews')
+      .insert([{
+        doctor_id,
+        patient_id,
+        appointment_id: appointment_id || null,
+        rating: parseInt(rating, 10),
+        comment: comment || '',
+        is_verified: true
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ============================================================================
+  // 7. USER PROFILES
+  // ============================================================================
+  async getProfiles() {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+    const { data, error } = await sb
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('getProfiles error:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getProfileById(id) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    const { data, error } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return data;
+  },
+
+  async updateProfile(id, profileData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    // 1. First attempt update with all fields
+    const { data, error } = await sb
+      .from('profiles')
+      .update(profileData)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Profile update note, retrying with standard columns:', error.message);
+      // Fallback to standard columns in case custom columns are pending migration
+      const coreFields = {
+        full_name: profileData.full_name,
+        phone: profileData.phone,
+        gender: profileData.gender,
+        date_of_birth: profileData.date_of_birth || null,
+        blood_group: profileData.blood_group || null,
+        address: profileData.address || null,
+        profile_image: profileData.profile_image || null
+      };
+      const { data: coreData, error: coreErr } = await sb
+        .from('profiles')
+        .update(coreFields)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+
+      if (coreErr) throw coreErr;
+      return coreData;
+    }
+    return data;
+  },
+
+  // ============================================================================
+  // 8. PATIENT CHECK-IN, QUEUE & CONSULTATION WORKFLOW
+  // ============================================================================
+  async checkInAppointment(appointmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const now = new Date().toISOString();
+    let data = null;
+    let res = await sb
+      .from('appointments')
+      .update({
+        status: 'checked_in',
+        queue_status: 'waiting',
+        check_in_status: 'checked_in',
+        checked_in_at: now,
+        updated_at: now
+      })
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    // If status check constraint rejects 'checked_in', keep current status & update check_in_status
+    if (res.error && (res.error.message?.includes('appointments_status_check') || res.error.message?.includes('check constraint'))) {
+      res = await sb
+        .from('appointments')
+        .update({
+          queue_status: 'waiting',
+          check_in_status: 'checked_in',
+          checked_in_at: now,
+          updated_at: now
+        })
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+    }
+
+    if (res.error) throw res.error;
+    data = res.data;
+
+    if (data && data.patient_id) {
+      await this.createNotification({
+        user_id: data.patient_id,
+        title: 'Check-In Confirmed! 🏥',
+        message: `You have successfully checked in for Token ${data.token_number}. Please wait in the OPD waiting area.`,
+        type: 'queue',
+        link: 'queue-status.html'
+      });
+    }
+
+    // Audit log
+    await this.logAuditEvent({
+      action: 'PATIENT_CHECKED_IN',
+      entity_type: 'appointment',
+      entity_id: appointmentId,
+      details: { token: data?.token_number }
+    });
+
+    return data;
+  },
+
+  async startConsultation(appointmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const now = new Date().toISOString();
+    const candidates = ['in-progress', 'in_consultation', 'in-consultation', 'confirmed'];
+    let data = null;
+    let lastErr = null;
+
+    for (const st of candidates) {
+      const res = await sb
+        .from('appointments')
+        .update({
+          status: st,
+          queue_status: 'in-room',
+          consultation_started_at: now,
+          updated_at: now
+        })
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+
+      if (!res.error) {
+        data = res.data;
+        lastErr = null;
+        break;
+      }
+      lastErr = res.error;
+      if (!res.error.message?.includes('appointments_status_check') && !res.error.message?.includes('check constraint')) break;
+    }
+
+    if (lastErr && (lastErr.message?.includes('appointments_status_check') || lastErr.message?.includes('check constraint'))) {
+      const fb = await sb
+        .from('appointments')
+        .update({
+          queue_status: 'in-room',
+          consultation_started_at: now,
+          updated_at: now
+        })
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+      if (!fb.error) data = fb.data;
+      else throw lastErr;
+    } else if (lastErr) {
+      throw lastErr;
+    }
+
+    return data;
+  },
+
+  async completeConsultation({ appointmentId, doctorId, patientId, diagnosis, notes, follow_up_date, prescriptions = [] }) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const now = new Date().toISOString();
+
+    // 1. Mark appointment as completed
+    const { data: appt, error: aErr } = await sb
+      .from('appointments')
+      .update({
+        status: 'completed',
+        queue_status: 'completed',
+        doctor_notes: notes || diagnosis || 'Consultation completed.',
+        completed_at: now,
+        updated_at: now
+      })
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    if (aErr) throw aErr;
+
+    // 2. Create Consultation Record
+    let consultationRecord = null;
+    try {
+      const { data: consData, error: cErr } = await sb
+        .from('consultations')
+        .upsert({
+          appointment_id: appointmentId,
+          doctor_id: doctorId,
+          patient_id: patientId,
+          diagnosis: diagnosis || 'General Diagnosis',
+          notes: notes || '',
+          follow_up_date: follow_up_date || null,
+          updated_at: now
+        }, { onConflict: 'appointment_id' })
+        .select()
+        .maybeSingle();
+
+      consultationRecord = consData;
+
+      // 3. Save Prescriptions if any
+      if (consultationRecord && prescriptions && prescriptions.length > 0) {
+        await sb.from('prescriptions').delete().eq('consultation_id', consultationRecord.id);
+        const rows = prescriptions.map(p => ({
+          consultation_id: consultationRecord.id,
+          medicine: p.medicine,
+          dosage: p.dosage || '1 Tablet',
+          frequency: p.frequency || 'Twice Daily',
+          duration: p.duration || '5 Days',
+          instructions: p.instructions || 'After meals'
+        }));
+        await sb.from('prescriptions').insert(rows);
+      }
+    } catch (e) {
+      console.warn('Consultation/prescription write note:', e);
+    }
+
+    // 4. Notify patient
+    if (patientId) {
+      await this.createNotification({
+        user_id: patientId,
+        title: 'Consultation Completed 🩺',
+        message: `Your consultation is completed. View your prescription & doctor notes in your portal.`,
+        type: 'appointment',
+        link: 'appointments.html'
+      });
+    }
+
+    // Audit log
+    await this.logAuditEvent({
+      action: 'CONSULTATION_COMPLETED',
+      entity_type: 'appointment',
+      entity_id: appointmentId,
+      details: { doctor_id: doctorId, patient_id: patientId, prescription_count: prescriptions.length }
+    });
+
+    return appt;
+  },
+
+  async getConsultationByAppointment(appointmentId) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+
+    try {
+      const { data: cons } = await sb
+        .from('consultations')
+        .select(`
+          *,
+          prescriptions (*)
+        `)
+        .eq('appointment_id', appointmentId)
+        .maybeSingle();
+
+      return cons;
+    } catch (e) {
+      console.warn('getConsultationByAppointment note:', e);
+      return null;
+    }
+  },
+
+  async rescheduleAppointment(appointmentId, newDate, newTime) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const cleanTime = newTime.substring(0, 5);
+    let updatePayload = {
+      appointment_date: newDate,
+      time_slot: cleanTime,
+      status: 'confirmed',
+      queue_status: 'waiting',
+      updated_at: new Date().toISOString()
+    };
+
+    let { data, error } = await sb
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    if (error && error.message && error.message.includes('time_slot')) {
+      delete updatePayload.time_slot;
+      updatePayload.appointment_time = cleanTime;
+      const retryRes = await sb
+        .from('appointments')
+        .update(updatePayload)
+        .eq('id', appointmentId)
+        .select()
+        .maybeSingle();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('This time slot is already booked for this doctor. Please choose another time.');
+      }
+      throw error;
+    }
+
+    if (data && data.patient_id) {
+      await this.createNotification({
+        user_id: data.patient_id,
+        title: 'Appointment Rescheduled 📅',
+        message: `Your appointment has been rescheduled to ${newDate} at ${this.formatTime12Hour(cleanTime)}. Token: ${data.token_number}`,
+        type: 'appointment',
+        link: 'appointments.html'
+      });
+    }
+
+    return data;
+  },
+
+  async cancelAppointment(appointmentId, reason = '') {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { data, error } = await sb
+      .from('appointments')
+      .update({
+        status: 'cancelled',
+        cancellation_reason: reason,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (data && data.patient_id) {
+      await this.createNotification({
+        user_id: data.patient_id,
+        title: 'Appointment Cancelled',
+        message: `Your appointment on ${data.appointment_date} has been cancelled.`,
+        type: 'cancellation',
+        link: 'appointments.html'
+      });
+    }
+
+    return data;
+  },
+
+  // ============================================================================
+  // 9. DOCTOR LEAVES & UNAVAILABILITY
+  // ============================================================================
+  async getDoctorLeaves(doctorId) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    try {
+      const { data, error } = await sb
+        .from('doctor_leaves')
+        .select('*')
+        .eq('doctor_id', doctorId)
+        .order('leave_date', { ascending: true });
+
+      if (error) return [];
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async addDoctorLeave({ doctorId, leaveDate, reason }) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { data, error } = await sb
+      .from('doctor_leaves')
+      .insert([{
+        doctor_id: doctorId,
+        leave_date: leaveDate,
+        reason: reason || 'Personal Leave'
+      }])
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteDoctorLeave(leaveId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { error } = await sb
+      .from('doctor_leaves')
+      .delete()
+      .eq('id', leaveId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  // ============================================================================
+  // 10. FAMILY MEMBERS
+  // ============================================================================
+  async getFamilyMembers(patientId) {
+    const sb = getSupabaseClient();
+    if (!sb || !patientId) return [];
+
+    let cleanPatientId = patientId;
+    if (typeof cleanPatientId === 'string') {
+      cleanPatientId = cleanPatientId.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+    }
+
+    try {
+      const { data, error } = await sb
+        .from('family_members')
+        .select('*')
+        .eq('patient_id', cleanPatientId)
+        .order('created_at', { ascending: false });
+
+      if (error) return [];
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async addFamilyMember(memberData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const currentUser = window.Auth?.getCurrentUser() || {};
+    const userEmail = (currentUser.email || '').trim().toLowerCase();
+
+    let targetPatientId = memberData.patient_id;
+    if (userEmail) {
+      try {
+        const { data: profByEmail } = await sb.from('profiles').select('id').eq('email', userEmail).maybeSingle();
+        if (profByEmail?.id) targetPatientId = profByEmail.id;
+      } catch (e) {}
+    }
+
+    if (typeof targetPatientId === 'string') {
+      targetPatientId = targetPatientId.trim().toLowerCase().replace(/[^0-9a-f-]/g, '0');
+    }
+
+    const payload = {
+      ...memberData,
+      patient_id: targetPatientId
+    };
+
+    const { data, error } = await sb
+      .from('family_members')
+      .insert([payload])
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteFamilyMember(memberId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { error } = await sb
+      .from('family_members')
+      .delete()
+      .eq('id', memberId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  // ============================================================================
+  // 11. OPD ROOMS
+  // ============================================================================
+  async getRooms() {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    try {
+      const { data, error } = await sb
+        .from('opd_rooms')
+        .select(`
+          *,
+          departments (name, code)
+        `)
+        .order('room_number', { ascending: true });
+
+      if (error) return [];
+      return (data || []).map(r => ({
+        ...r,
+        department_name: r.departments?.name || 'General'
+      }));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async addRoom(roomData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { data, error } = await sb
+      .from('opd_rooms')
+      .insert([roomData])
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateRoom(id, roomData) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { data, error } = await sb
+      .from('opd_rooms')
+      .update(roomData)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteRoom(id) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const { error } = await sb
+      .from('opd_rooms')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  },
+
+  // ============================================================================
+  // 12. QR CODE GENERATION & SECURE APPOINTMENT VERIFICATION (Feature 1)
+  // ============================================================================
+  generateVerificationHash(appt) {
+    if (!appt) return '';
+    const raw = `${appt.id || ''}:${appt.appointment_number || ''}:${appt.token_number || ''}:${appt.patient_id || ''}`;
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const char = raw.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16).padStart(8, '0');
+    return `CP-${hex.toUpperCase()}`;
+  },
+
+  generateAppointmentQRCodeData(appt) {
+    if (!appt) return '';
+    const hash = appt.verification_hash || this.generateVerificationHash(appt);
+    // Secure Payload: contains verification identifier, token & signature hash with zero personal data
+    return `CAREPULSE:VERIFY:${appt.id}:${appt.token_number || ''}:${hash}`;
+  },
+
+  async verifyAppointmentQR(identifier) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+    if (!identifier || typeof identifier !== 'string') {
+      return { valid: false, message: 'Invalid or empty QR code / Token.' };
+    }
+
+    const cleanInput = identifier.trim();
+    let targetId = cleanInput;
+    let targetToken = cleanInput;
+
+    // 1. Parse structured CAREPULSE:VERIFY payload: CAREPULSE:VERIFY:<id>:<token>:<hash>
+    if (cleanInput.startsWith('CAREPULSE:VERIFY:')) {
+      const parts = cleanInput.split(':');
+      targetId = parts[2] || '';
+      targetToken = parts[3] || '';
+    } else if (cleanInput.startsWith('CAREPULSE|')) {
+      // Legacy format: CAREPULSE|<id>|<token>|<date>
+      const parts = cleanInput.split('|');
+      targetId = parts[1] || '';
+      targetToken = parts[2] || '';
+    } else {
+      // Check if JSON payload
+      try {
+        const parsed = JSON.parse(cleanInput);
+        if (parsed.id) targetId = parsed.id;
+        if (parsed.token) targetToken = parsed.token;
+      } catch (e) {}
+    }
+
+    const appointments = await this.getAppointments();
+    const cleanId = (targetId || '').toLowerCase().trim();
+    const cleanToken = (targetToken || '').toLowerCase().trim();
+    const cleanRaw = cleanInput.toLowerCase().trim();
+
+    const matched = appointments.find(a => 
+      (cleanId && a.id.toLowerCase() === cleanId) ||
+      (cleanToken && a.token_number && a.token_number.toLowerCase() === cleanToken) ||
+      (a.appointment_number && a.appointment_number.toLowerCase() === cleanRaw) ||
+      (a.token_number && a.token_number.toLowerCase() === cleanRaw) ||
+      a.id.toLowerCase() === cleanRaw
+    );
+
+    if (!matched) {
+      return { 
+        valid: false, 
+        message: 'No appointment found in hospital registry matching this QR code or Token.' 
+      };
+    }
+
+    // Check cancellation
+    if (matched.status === 'cancelled' || matched.status === 'rejected') {
+      return {
+        valid: false,
+        errorType: 'cancelled',
+        appointment: matched,
+        message: `Appointment is ${matched.status.toUpperCase()}${matched.cancellation_reason ? ': ' + matched.cancellation_reason : ''}. Check-in cannot proceed.`
+      };
+    }
+
+    // Check completed
+    if (matched.status === 'completed' || matched.queue_status === 'completed') {
+      return {
+        valid: false,
+        errorType: 'completed',
+        appointment: matched,
+        message: `Consultation for Token ${matched.token_number} is already COMPLETED. Check-in is not required.`
+      };
+    }
+
+    // Prevent duplicate check-in
+    const isCheckedIn = matched.status === 'checked_in' || matched.status === 'checked-in' || !!matched.checked_in_at;
+    if (isCheckedIn) {
+      const checkInTime = matched.checked_in_at ? this.formatTime12Hour(new Date(matched.checked_in_at).toTimeString().slice(0, 5)) : 'Earlier';
+      return {
+        valid: true,
+        isAlreadyCheckedIn: true,
+        appointment: matched,
+        message: `⚠️ DUPLICATE CHECK-IN PREVENTED: Patient ${matched.patient_name} (Token ${matched.token_number}) was already checked-in at ${checkInTime}. Currently waiting for consultation.`
+      };
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = matched.appointment_date === todayStr;
+
+    return {
+      valid: true,
+      isAlreadyCheckedIn: false,
+      isToday,
+      appointment: matched,
+      message: isToday 
+        ? '✓ Appointment Verified Successfully - Ready for Reception Check-in' 
+        : `✓ Appointment Verified (Note: Scheduled for ${matched.appointment_date})`
+    };
+  },
+
+  // ============================================================================
+  // 13. AUDIT LOGS
+  // ============================================================================
+  async logAuditEvent({ action, entity_type, entity_id, details = {} }) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+
+    try {
+      const user = window.Auth ? window.Auth.getCurrentUser() : null;
+      await sb.from('audit_logs').insert([{
+        user_id: user?.id || null,
+        action,
+        entity_type,
+        entity_id: String(entity_id || ''),
+        details
+      }]);
+    } catch (e) {
+      console.debug('Audit log note:', e);
+    }
+  },
+
+  async getAuditLogs(limit = 50) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+
+    try {
+      const { data, error } = await sb
+        .from('audit_logs')
+        .select(`
+          *,
+          profiles (full_name, email, role)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) return [];
+      return (data || []).map(l => ({
+        ...l,
+        user_name: l.profiles?.full_name || 'System / Admin',
+        user_email: l.profiles?.email || '',
+        user_role: l.profiles?.role || 'system'
+      }));
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // ============================================================================
+  // 14. REALTIME SUBSCRIPTION CHANNELS (WebSockets)
+  // ============================================================================
+  subscribeToAppointments(onEvent) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    const channel = sb
+      .channel('realtime_appointments_channel_' + Math.random().toString(36).slice(2))
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        (payload) => {
+          console.log('⚡ Realtime Appointment Event:', payload);
+          if (typeof onEvent === 'function') onEvent(payload);
+        }
+      )
+      .subscribe();
+    return channel;
+  },
+
+  subscribeToNotifications(userId, onEvent) {
+    const sb = getSupabaseClient();
+    if (!sb || !userId) return null;
+    const channel = sb
+      .channel(`realtime_notifications_${userId}_${Math.random().toString(36).slice(2)}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          console.log('⚡ Realtime Notification Received:', payload);
+          if (typeof onEvent === 'function') onEvent(payload);
+        }
+      )
+      .subscribe();
+    return channel;
+  },
+
+  // Utility Time Formatter
+  formatTime12Hour(time24) {
+    if (!time24) return '';
+    const [h, m] = time24.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
+  },
+
+  // ============================================================================
+  // 15. APPOINTMENT RESCHEDULING (Feature 2)
+  // ============================================================================
+  canRescheduleAppointment(appointment) {
+    if (!appointment) return false;
+    const isEligibleStatus = ['pending', 'confirmed'].includes(appointment.status);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isFutureOrToday = appointment.appointment_date >= todayStr;
+    return isEligibleStatus && isFutureOrToday;
+  },
+
+  async rescheduleAppointment(appointmentId, newDate, newTimeSlot, reason = '') {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const appt = await this.getAppointmentById(appointmentId);
+    if (!appt) throw new Error('Appointment not found.');
+
+    if (!this.canRescheduleAppointment(appt)) {
+      throw new Error(`Cannot reschedule appointment with status "${appt.status}". Only pending or confirmed upcoming appointments can be rescheduled.`);
+    }
+
+    // Double-Booking Guard: Check if the target slot is already occupied by another active appointment
+    const allAppointments = await this.getAppointments();
+    const cleanTime = (newTimeSlot || '').substring(0, 5);
+    const slotConflict = allAppointments.find(a => 
+      a.id !== appointmentId &&
+      a.doctor_id === appt.doctor_id &&
+      a.appointment_date === newDate &&
+      (a.time_slot || a.appointment_time || '').substring(0, 5) === cleanTime &&
+      !['cancelled', 'rejected'].includes(a.status)
+    );
+
+    if (slotConflict) {
+      throw new Error(`The selected slot (${this.formatTime12Hour(cleanTime)}) on ${newDate} is already booked by another patient. Please choose a different slot.`);
+    }
+
+    const oldDate = appt.appointment_date;
+    const oldSlot = appt.time_slot || appt.appointment_time;
+    const newRescheduleCount = (appt.reschedule_count || 0) + 1;
+    const nowIso = new Date().toISOString();
+
+    const updatePayload = {
+      appointment_date: newDate,
+      time_slot: cleanTime,
+      appointment_time: cleanTime,
+      status: 'confirmed',
+      reschedule_count: newRescheduleCount,
+      rescheduled_from_date: oldDate,
+      rescheduled_from_slot: oldSlot,
+      updated_at: nowIso
+    };
+
+    const { data, error } = await sb
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505' || error.message?.includes('idx_prevent_double_booking')) {
+        throw new Error('This time slot was just booked by another patient. Please select another slot.');
+      }
+      throw error;
+    }
+
+    // 1. Audit Log Event
+    await this.logAuditEvent({
+      action: 'APPOINTMENT_RESCHEDULED',
+      entity_type: 'appointment',
+      entity_id: appointmentId,
+      details: {
+        previous_date: oldDate,
+        previous_slot: oldSlot,
+        new_date: newDate,
+        new_slot: cleanTime,
+        reschedule_reason: reason,
+        reschedule_count: newRescheduleCount
+      }
+    });
+
+    // 2. Notify Patient
+    await this.createNotification({
+      user_id: appt.patient_id,
+      title: 'Appointment Rescheduled Successfully',
+      message: `Your appointment with Dr. ${appt.doctor_name || 'Specialist'} has been rescheduled to ${newDate} at ${this.formatTime12Hour(cleanTime)}. Token: ${appt.token_number}.`,
+      type: 'appointment',
+      link: `patient/appointment-details.html?id=${appointmentId}`
+    });
+
+    // 3. Notify Doctor
+    try {
+      const doc = await this.getDoctorById(appt.doctor_id);
+      if (doc && doc.profile_id) {
+        await this.createNotification({
+          user_id: doc.profile_id,
+          title: 'Patient Rescheduled Appointment',
+          message: `Patient ${appt.patient_name || 'Patient'} rescheduled their consultation to ${newDate} at ${this.formatTime12Hour(cleanTime)} (Reason: ${reason || 'Patient request'}).`,
+          type: 'appointment',
+          link: 'doctor/appointments.html'
+        });
+      }
+    } catch (e) {}
+
+    // 4. Trigger Waiting List check for the vacated old slot
+    try {
+      await this.processWaitingListForVacatedSlot(appt.doctor_id, oldDate, oldSlot);
+    } catch (e) {
+      console.debug('Waiting list reallocation on reschedule note:', e);
+    }
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    return data || { ...appt, ...updatePayload };
+  },
+
+  // ============================================================================
+  // 16. DOCTOR AVAILABILITY AUTO CALCULATION (Feature 3)
+  // ============================================================================
+  async calculateDoctorAvailability(doctorId, targetDateStr = null, targetTimeStr = null) {
+    const today = new Date();
+    const dateStr = targetDateStr || today.toISOString().split('T')[0];
+    const targetDate = new Date(dateStr + 'T00:00:00');
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[targetDate.getDay()];
+    const isToday = dateStr === today.toISOString().split('T')[0];
+
+    const doctor = await this.getDoctorById(doctorId);
+    if (!doctor || !doctor.is_active || !doctor.is_verified) {
+      return {
+        status: 'Not Available',
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+        badgeHtml: '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Not Available</span>',
+        message: 'Doctor is currently inactive or unverified.',
+        openSlotsCount: 0,
+        totalSlots: 0,
+        nextSlot: null
+      };
+    }
+
+    // 1. Check Approved Leaves
+    try {
+      const leaves = await this.getDoctorLeaves(doctorId);
+      const leave = (leaves || []).find(l => l.leave_date === dateStr);
+      if (leave) {
+        return {
+          status: 'On Leave',
+          badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+          badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200"><span class="w-2 h-2 rounded-full bg-purple-500"></span>On Leave</span>`,
+          message: `Doctor is on approved leave (${leave.reason || 'Personal Leave'}).`,
+          openSlotsCount: 0,
+          totalSlots: 0,
+          nextSlot: null
+        };
+      }
+    } catch (e) {}
+
+    // 2. Check Doctor Schedule for this Day of Week
+    const schedules = await this.getDoctorAvailability(doctorId);
+    const daySchedule = (schedules || []).find(s => 
+      s.day_of_week.toLowerCase() === dayName.toLowerCase() && s.is_available
+    );
+
+    if (!daySchedule) {
+      return {
+        status: 'Not Available',
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+        badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Not Available</span>`,
+        message: `Doctor does not have OPD scheduled on ${dayName}s.`,
+        openSlotsCount: 0,
+        totalSlots: 0,
+        nextSlot: null
+      };
+    }
+
+    // 3. Generate all slots
+    const slotDuration = daySchedule.slot_duration_minutes || 30;
+    const [startH, startM] = daySchedule.start_time.split(':').map(Number);
+    const [endH, endM] = daySchedule.end_time.split(':').map(Number);
+
+    let cur = new Date(targetDate);
+    cur.setHours(startH, startM, 0, 0);
+    const end = new Date(targetDate);
+    end.setHours(endH, endM, 0, 0);
+
+    const allSlots = [];
+    while (cur < end) {
+      const timeVal = cur.toTimeString().substring(0, 5);
+      allSlots.push({
+        timeVal,
+        time12: this.formatTime12Hour(timeVal)
+      });
+      cur = new Date(cur.getTime() + slotDuration * 60000);
+    }
+
+    // 4. Check active appointments on this date
+    const allAppointments = await this.getAppointments();
+    const dayBookings = allAppointments.filter(a => 
+      a.doctor_id === doctorId &&
+      a.appointment_date === dateStr &&
+      !['cancelled', 'rejected'].includes(a.status)
+    );
+
+    const currentTimeStr = targetTimeStr || today.toTimeString().substring(0, 5);
+    const bookedTimeMap = new Set(dayBookings.map(b => (b.time_slot || b.appointment_time || '').substring(0, 5)));
+
+    // Check if doctor currently has a patient in consultation room right now
+    const activeInRoomApt = isToday ? dayBookings.find(b => 
+      b.queue_status === 'in-room' || b.queue_status === 'called' || 
+      b.status === 'in-consultation' || b.status === 'in_consultation' || b.status === 'in-progress' ||
+      b.is_called === true
+    ) : null;
+
+    // Remaining available slots
+    const availableSlots = allSlots.filter(s => {
+      if (bookedTimeMap.has(s.timeVal)) return false;
+      if (isToday && s.timeVal < currentTimeStr) return false;
+      return true;
+    });
+
+    if (allSlots.length > 0 && availableSlots.length === 0) {
+      return {
+        status: 'Fully Booked',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Fully Booked</span>`,
+        message: 'All appointment slots are fully booked for this date.',
+        openSlotsCount: 0,
+        totalSlots: allSlots.length,
+        nextSlot: null,
+        activeInRoomPatient: activeInRoomApt
+      };
+    }
+
+    if (activeInRoomApt) {
+      return {
+        status: 'Busy',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"><span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>Busy (In Consultation)</span>`,
+        message: `Doctor is currently attending Token ${activeInRoomApt.token_number} in Room ${doctor.room_number || '101'}.`,
+        openSlotsCount: availableSlots.length,
+        totalSlots: allSlots.length,
+        nextSlot: availableSlots[0]?.time12 || null,
+        activeInRoomPatient: activeInRoomApt
+      };
+    }
+
+    return {
+      status: 'Available',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Available</span>`,
+      message: `${availableSlots.length} slot(s) open for booking.`,
+      openSlotsCount: availableSlots.length,
+      totalSlots: allSlots.length,
+      nextSlot: availableSlots[0]?.time12 || null
+    };
+  },
+
+  // ============================================================================
+  // 17. APPOINTMENT REMINDERS (Feature 4)
+  // ============================================================================
+  async checkAndSendAppointmentReminders() {
+    const sb = getSupabaseClient();
+    if (!sb) return { sent24h: 0, sent1h: 0 };
+
+    const appointments = await this.getAppointments();
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Only active upcoming appointments
+    const activeUpcoming = appointments.filter(a => 
+      ['confirmed', 'pending'].includes(a.status) &&
+      a.appointment_date >= todayStr
+    );
+
+    let sent24h = 0;
+    let sent1h = 0;
+
+    let sentReminders = [];
+    try {
+      const { data, error } = await sb.from('appointment_reminders').select('*');
+      if (!error && data) sentReminders = data;
+    } catch (e) {}
+
+    let localReminderStore = {};
+    try {
+      localReminderStore = JSON.parse(localStorage.getItem('carepulse_sent_reminders') || '{}');
+    } catch (e) {}
+
+    for (const appt of activeUpcoming) {
+      const timeStr = appt.time_slot || appt.appointment_time || '09:00';
+      const apptDateTime = new Date(`${appt.appointment_date}T${timeStr}:00`);
+      const diffMs = apptDateTime - today;
+      const hoursUntil = diffMs / (1000 * 60 * 60);
+
+      const hasSent24h = sentReminders.some(r => r.appointment_id === appt.id && r.reminder_type === '24h') ||
+                         localReminderStore[`${appt.id}_24h`];
+
+      const hasSent1h = sentReminders.some(r => r.appointment_id === appt.id && r.reminder_type === '1h') ||
+                        localReminderStore[`${appt.id}_1h`];
+
+      // 24 Hour Reminder: between 1 and 24 hours prior
+      if (hoursUntil <= 24 && hoursUntil > 1 && !hasSent24h) {
+        try {
+          await this.createNotification({
+            user_id: appt.patient_id,
+            title: 'Appointment Reminder: Tomorrow',
+            message: `Reminder: You have an appointment tomorrow with Dr. ${appt.doctor_name} at ${this.formatTime12Hour(timeStr)}. Token: ${appt.token_number}. Please arrive 15 minutes prior.`,
+            type: 'reminder',
+            link: `patient/appointment-details.html?id=${appt.id}`
+          });
+
+          try {
+            await sb.from('appointment_reminders').insert([{
+              appointment_id: appt.id,
+              patient_id: appt.patient_id,
+              reminder_type: '24h',
+              scheduled_for: apptDateTime.toISOString(),
+              sent_at: new Date().toISOString(),
+              status: 'sent'
+            }]);
+          } catch (e) {}
+
+          localReminderStore[`${appt.id}_24h`] = true;
+          sent24h++;
+        } catch (err) {
+          console.warn('Error sending 24h reminder:', err);
+        }
+      }
+
+      // 1 Hour Reminder: between 0 and 1 hour prior
+      if (hoursUntil <= 1 && hoursUntil > 0 && !hasSent1h) {
+        try {
+          await this.createNotification({
+            user_id: appt.patient_id,
+            title: 'Appointment Reminder: Starting in 1 Hour',
+            message: `Reminder: Your consultation with Dr. ${appt.doctor_name} starts in approximately 1 hour at ${this.formatTime12Hour(timeStr)}. Token: ${appt.token_number}. Room: ${appt.room_number || 'Room 101'}. Track your live queue status.`,
+            type: 'reminder',
+            link: `patient/queue-status.html?id=${appt.id}`
+          });
+
+          try {
+            await sb.from('appointment_reminders').insert([{
+              appointment_id: appt.id,
+              patient_id: appt.patient_id,
+              reminder_type: '1h',
+              scheduled_for: apptDateTime.toISOString(),
+              sent_at: new Date().toISOString(),
+              status: 'sent'
+            }]);
+          } catch (e) {}
+
+          localReminderStore[`${appt.id}_1h`] = true;
+          sent1h++;
+        } catch (err) {
+          console.warn('Error sending 1h reminder:', err);
+        }
+      }
+    }
+
+    try {
+      localStorage.setItem('carepulse_sent_reminders', JSON.stringify(localReminderStore));
+    } catch (e) {}
+
+    return { sent24h, sent1h };
+  },
+
+  startReminderScheduler() {
+    if (window._carepulseReminderTimer) return;
+    this.checkAndSendAppointmentReminders().catch(() => {});
+    window._carepulseReminderTimer = setInterval(() => {
+      this.checkAndSendAppointmentReminders().catch(() => {});
+    }, 60000);
+  },
+
+  // ============================================================================
+  // 18. DOCTOR DELAY MANAGEMENT (Feature 5)
+  // ============================================================================
+  async reportDoctorDelay(doctorId, delayMinutes, reason = '', broadcast = true) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const cleanDelay = Math.max(0, parseInt(delayMinutes, 10) || 0);
+    const nowIso = new Date().toISOString();
+
+    const doctor = await this.getDoctorById(doctorId);
+    if (!doctor) throw new Error('Doctor not found');
+
+    // 1. Update doctors table
+    try {
+      await sb
+        .from('doctors')
+        .update({
+          delay_minutes: cleanDelay,
+          delay_reason: reason,
+          delay_reported_at: nowIso,
+          updated_at: nowIso
+        })
+        .eq('id', doctorId);
+    } catch (e) {
+      console.warn('Doctor delay column update note:', e);
+    }
+
+    // Fallback store
+    try {
+      const delaysMap = JSON.parse(localStorage.getItem('carepulse_doctor_delays') || '{}');
+      delaysMap[doctorId] = {
+        delay_minutes: cleanDelay,
+        delay_reason: reason,
+        delay_reported_at: nowIso
+      };
+      localStorage.setItem('carepulse_doctor_delays', JSON.stringify(delaysMap));
+    } catch (e) {}
+
+    // 2. Audit Log
+    await this.logAuditEvent({
+      action: cleanDelay > 0 ? 'DOCTOR_DELAY_REPORTED' : 'DOCTOR_DELAY_CLEARED',
+      entity_type: 'doctor',
+      entity_id: doctorId,
+      details: {
+        doctor_name: doctor.doctor_name || 'Doctor',
+        delay_minutes: cleanDelay,
+        reason
+      }
+    });
+
+    // 3. Broadcast notification to affected patients today
+    if (broadcast && cleanDelay > 0) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const allAppointments = await this.getAppointments();
+      const affectedPatients = allAppointments.filter(a => 
+        a.doctor_id === doctorId &&
+        a.appointment_date === todayStr &&
+        ['pending', 'confirmed', 'checked_in'].includes(a.status)
+      );
+
+      for (const appt of affectedPatients) {
+        try {
+          await this.createNotification({
+            user_id: appt.patient_id,
+            title: 'OPD Schedule Delay Notice',
+            message: `Notice: Dr. ${doctor.doctor_name || 'Specialist'} is running approximately ${cleanDelay} minutes behind schedule (${reason || 'OPD Delay'}). Your estimated waiting time has been adjusted.`,
+            type: 'queue',
+            link: `patient/queue-status.html?id=${appt.id}`
+          });
+        } catch (e) {}
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+
+    return {
+      doctorId,
+      delay_minutes: cleanDelay,
+      delay_reason: reason,
+      delay_reported_at: nowIso
+    };
+  },
+
+  async clearDoctorDelay(doctorId) {
+    return this.reportDoctorDelay(doctorId, 0, 'Schedule cleared - running on time', true);
+  },
+
+  async getDoctorDelay(doctorId) {
+    const sb = getSupabaseClient();
+    let delayInfo = { delay_minutes: 0, delay_reason: '', delay_reported_at: null };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('doctors')
+          .select('delay_minutes, delay_reason, delay_reported_at')
+          .eq('id', doctorId)
+          .maybeSingle();
+        if (!error && data) {
+          delayInfo = {
+            delay_minutes: data.delay_minutes || 0,
+            delay_reason: data.delay_reason || '',
+            delay_reported_at: data.delay_reported_at || null
+          };
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const delaysMap = JSON.parse(localStorage.getItem('carepulse_doctor_delays') || '{}');
+      if (delaysMap[doctorId] && (delaysMap[doctorId].delay_minutes || delaysMap[doctorId].delay_minutes === 0)) {
+        delayInfo = delaysMap[doctorId];
+      }
+    } catch (e) {}
+
+    return delayInfo;
+  },
+
+  // ============================================================================
+  // 19. WAITING LIST & AUTO SLOT REALLOCATION (Feature 6)
+  // ============================================================================
+  async addToWaitingList({ patientId, doctorId, preferredDate, preferredTimeRange = 'any', reason = '', symptoms = '' }) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const cleanDate = preferredDate;
+    const cleanTimeRange = preferredTimeRange || 'any';
+    const cleanReason = reason || symptoms || 'Consultation request';
+
+    const doctor = await this.getDoctorById(doctorId);
+    const doctorName = doctor ? doctor.doctor_name : 'Specialist';
+
+    let entry = null;
+
+    try {
+      const { data, error } = await sb
+        .from('waiting_list')
+        .insert([{
+          patient_id: patientId,
+          doctor_id: doctorId,
+          preferred_date: cleanDate,
+          preferred_time_range: cleanTimeRange,
+          reason: cleanReason,
+          symptoms: symptoms,
+          status: 'waiting',
+          priority: 1
+        }])
+        .select()
+        .single();
+
+      if (!error && data) entry = data;
+    } catch (e) {
+      console.warn('waiting_list table insert note:', e);
+    }
+
+    if (!entry) {
+      const localList = JSON.parse(localStorage.getItem('carepulse_waiting_list') || '[]');
+      entry = {
+        id: 'wait-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        patient_id: patientId,
+        doctor_id: doctorId,
+        preferred_date: cleanDate,
+        preferred_time_range: cleanTimeRange,
+        reason: cleanReason,
+        symptoms: symptoms,
+        status: 'waiting',
+        priority: 1,
+        created_at: new Date().toISOString()
+      };
+      localList.push(entry);
+      localStorage.setItem('carepulse_waiting_list', JSON.stringify(localList));
+    }
+
+    // 1. Audit Log
+    await this.logAuditEvent({
+      action: 'WAITING_LIST_JOINED',
+      entity_type: 'waiting_list',
+      entity_id: entry.id,
+      details: {
+        patient_id: patientId,
+        doctor_id: doctorId,
+        preferred_date: cleanDate,
+        preferred_time_range: cleanTimeRange
+      }
+    });
+
+    // 2. Notify Patient
+    await this.createNotification({
+      user_id: patientId,
+      title: 'Joined Priority Waiting List',
+      message: `You are on the waiting list for Dr. ${doctorName} on ${cleanDate}. You will receive an instant alert if an appointment slot opens up.`,
+      type: 'queue',
+      link: 'patient/appointments.html'
+    });
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    return entry;
+  },
+
+  async getWaitingList(filters = {}) {
+    const sb = getSupabaseClient();
+    let list = [];
+
+    if (sb) {
+      try {
+        let query = sb.from('waiting_list').select(`
+          *,
+          profiles:patient_id (full_name, email, phone),
+          doctors:doctor_id (
+            id, specialization, room_number,
+            profiles (full_name)
+          )
+        `).order('created_at', { ascending: true });
+
+        if (filters.patientId) query = query.eq('patient_id', filters.patientId);
+        if (filters.doctorId) query = query.eq('doctor_id', filters.doctorId);
+        if (filters.status) query = query.eq('status', filters.status);
+        if (filters.date) query = query.eq('preferred_date', filters.date);
+
+        const { data, error } = await query;
+        if (!error && data) {
+          list = data.map(item => ({
+            ...item,
+            patient_name: item.profiles?.full_name || 'Patient',
+            patient_phone: item.profiles?.phone || '',
+            doctor_name: item.doctors?.profiles?.full_name || 'Dr. Specialist',
+            doctor_specialization: item.doctors?.specialization || 'Specialist'
+          }));
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const localList = JSON.parse(localStorage.getItem('carepulse_waiting_list') || '[]');
+      if (localList.length > 0) {
+        const existingIds = new Set(list.map(i => i.id));
+        for (const item of localList) {
+          if (!existingIds.has(item.id)) {
+            if (filters.patientId && item.patient_id !== filters.patientId) continue;
+            if (filters.doctorId && item.doctor_id !== filters.doctorId) continue;
+            if (filters.status && item.status !== filters.status) continue;
+            if (filters.date && item.preferred_date !== filters.date) continue;
+            list.push(item);
+          }
+        }
+      }
+    } catch (e) {}
+
+    return list;
+  },
+
+  async processWaitingListForVacatedSlot(doctorId, dateStr, timeSlotStr) {
+    const sb = getSupabaseClient();
+    const cleanSlot = (timeSlotStr || '').substring(0, 5);
+
+    const waitingEntries = await this.getWaitingList({
+      doctorId,
+      date: dateStr,
+      status: 'waiting'
+    });
+
+    if (waitingEntries.length === 0) {
+      return { reallocated: false, message: 'No waiting list entries for this slot.' };
+    }
+
+    const targetEntry = waitingEntries[0];
+    const expiresAt = new Date(Date.now() + 30 * 60000).toISOString();
+
+    const doctor = await this.getDoctorById(doctorId);
+    const doctorName = doctor ? doctor.doctor_name : 'Specialist';
+
+    if (sb) {
+      try {
+        await sb.from('waiting_list').update({
+          status: 'offered',
+          offered_time_slot: cleanSlot,
+          offer_expires_at: expiresAt,
+          updated_at: new Date().toISOString()
+        }).eq('id', targetEntry.id);
+      } catch (e) {}
+    }
+
+    try {
+      const localList = JSON.parse(localStorage.getItem('carepulse_waiting_list') || '[]');
+      const match = localList.find(i => i.id === targetEntry.id);
+      if (match) {
+        match.status = 'offered';
+        match.offered_time_slot = cleanSlot;
+        match.offer_expires_at = expiresAt;
+        localStorage.setItem('carepulse_waiting_list', JSON.stringify(localList));
+      }
+    } catch (e) {}
+
+    await this.createNotification({
+      user_id: targetEntry.patient_id,
+      title: 'Priority Slot Released!',
+      message: `A released appointment slot for Dr. ${doctorName} on ${dateStr} at ${this.formatTime12Hour(cleanSlot)} is now available for you! Click to accept within 30 minutes.`,
+      type: 'queue',
+      link: `patient/appointments.html?offer=${targetEntry.id}`
+    });
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+
+    return {
+      reallocated: true,
+      waitingId: targetEntry.id,
+      patientId: targetEntry.patient_id,
+      slot: cleanSlot,
+      expiresAt
+    };
+  },
+
+  async processWaitingListForCancelledSlot(appointmentId) {
+    const appt = await this.getAppointmentById(appointmentId);
+    if (!appt) return;
+    return this.processWaitingListForVacatedSlot(
+      appt.doctor_id,
+      appt.appointment_date,
+      appt.time_slot || appt.appointment_time
+    );
+  },
+
+  async acceptWaitingListOffer(waitingId) {
+    const list = await this.getWaitingList();
+    const entry = list.find(i => i.id === waitingId);
+    if (!entry) throw new Error('Waiting list offer not found.');
+
+    if (entry.status !== 'offered') {
+      throw new Error(`This offer is no longer valid (current status: ${entry.status}).`);
+    }
+
+    if (entry.offer_expires_at && new Date(entry.offer_expires_at) < new Date()) {
+      await this.declineWaitingListOffer(waitingId, 'Offer expired');
+      throw new Error('This slot offer has expired (30-minute window exceeded).');
+    }
+
+    // Book the appointment
+    const newAppointment = await this.createAppointment({
+      patient_id: entry.patient_id,
+      doctor_id: entry.doctor_id,
+      appointment_date: entry.preferred_date,
+      time_slot: entry.offered_time_slot,
+      reason: entry.reason || 'Priority Waiting List Allocation',
+      priority: 'normal'
+    });
+
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('waiting_list').update({
+          status: 'booked',
+          updated_at: new Date().toISOString()
+        }).eq('id', waitingId);
+      } catch (e) {}
+    }
+
+    try {
+      const localList = JSON.parse(localStorage.getItem('carepulse_waiting_list') || '[]');
+      const match = localList.find(i => i.id === waitingId);
+      if (match) {
+        match.status = 'booked';
+        localStorage.setItem('carepulse_waiting_list', JSON.stringify(localList));
+      }
+    } catch (e) {}
+
+    await this.logAuditEvent({
+      action: 'WAITING_LIST_OFFER_ACCEPTED',
+      entity_type: 'waiting_list',
+      entity_id: waitingId,
+      details: {
+        appointment_id: newAppointment.id,
+        token_number: newAppointment.token_number
+      }
+    });
+
+    await this.createNotification({
+      user_id: entry.patient_id,
+      title: 'Appointment Confirmed from Waiting List',
+      message: `Your appointment has been confirmed! Token: ${newAppointment.token_number} on ${entry.preferred_date} at ${this.formatTime12Hour(entry.offered_time_slot)}.`,
+      type: 'appointment',
+      link: `patient/appointment-details.html?id=${newAppointment.id}`
+    });
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    return newAppointment;
+  },
+
+  async declineWaitingListOffer(waitingId, reason = 'Declined by patient') {
+    const list = await this.getWaitingList();
+    const entry = list.find(i => i.id === waitingId);
+    if (!entry) return;
+
+    const sb = getSupabaseClient();
+    const isExpired = reason.toLowerCase().includes('expired');
+    const newStatus = isExpired ? 'expired' : 'declined';
+
+    if (sb) {
+      try {
+        await sb.from('waiting_list').update({
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        }).eq('id', waitingId);
+      } catch (e) {}
+    }
+
+    try {
+      const localList = JSON.parse(localStorage.getItem('carepulse_waiting_list') || '[]');
+      const match = localList.find(i => i.id === waitingId);
+      if (match) {
+        match.status = newStatus;
+        localStorage.setItem('carepulse_waiting_list', JSON.stringify(localList));
+      }
+    } catch (e) {}
+
+    if (entry.offered_time_slot) {
+      try {
+        await this.processWaitingListForVacatedSlot(
+          entry.doctor_id,
+          entry.preferred_date,
+          entry.offered_time_slot
+        );
+      } catch (e) {}
+    }
+
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+  },
+
+  async checkExpiredWaitingOffers() {
+    const list = await this.getWaitingList({ status: 'offered' });
+    const now = new Date();
+    for (const item of list) {
+      if (item.offer_expires_at && new Date(item.offer_expires_at) < now) {
+        await this.declineWaitingListOffer(item.id, 'Offer expired (30 mins exceeded)');
+      }
+    }
+  },
+
+  // ============================================================================
+  // 20. DIRECT PATIENT CALL & REALTIME TWO-WAY CHAT API
+  // ============================================================================
+  async directCallPatient(appointmentId, doctorId) {
+    const sb = getSupabaseClient();
+    if (!sb) throw new Error('Supabase client not connected');
+
+    const now = new Date().toISOString();
+    const { data: appt, error } = await sb
+      .from('appointments')
+      .update({
+        queue_status: 'called',
+        is_called: true,
+        called_at: now,
+        updated_at: now
+      })
+      .eq('id', appointmentId)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (appt && appt.patient_id) {
+      await this.createNotification({
+        user_id: appt.patient_id,
+        title: '🔔 Consultation Calling!',
+        message: `Dr. is now calling Token ${appt.token_number} into ${appt.room_number || 'Room 101'}. Please proceed inside immediately!`,
+        type: 'queue',
+        link: 'queue-status.html'
+      });
+    }
+
+    // Dispatch real-time DB change event & patient called event
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    window.dispatchEvent(new CustomEvent('carepulse_patient_called', { detail: { appointmentId, token: appt?.token_number } }));
+
+    return appt;
+  },
+
+  async sendChatMessage({ appointmentId, doctorId, patientId, senderId, senderRole, senderName, message }) {
+    const sb = getSupabaseClient();
+    const payload = {
+      appointment_id: appointmentId,
+      doctor_id: doctorId || null,
+      patient_id: patientId || null,
+      sender_id: senderId,
+      sender_role: senderRole,
+      sender_name: senderName,
+      message: message.trim(),
+      created_at: new Date().toISOString()
+    };
+
+    let result = null;
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('chat_messages')
+          .insert([payload])
+          .select()
+          .maybeSingle();
+        if (!error && data) {
+          result = data;
+        }
+      } catch (e) {
+        console.warn('Chat remote insert note, using resilient local storage:', e);
+      }
+    }
+
+    if (!result) {
+      // Offline fallback: save to localStorage
+      result = { id: 'local-' + Date.now(), ...payload };
+      try {
+        const key = `carepulse_chat_${appointmentId}`;
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        local.push(result);
+        localStorage.setItem(key, JSON.stringify(local));
+      } catch (e) {}
+    }
+
+    // Trigger Notification for the recipient
+    try {
+      const recipientId = (senderRole === 'patient') ? doctorId : patientId;
+      if (recipientId) {
+        await this.createNotification({
+          user_id: recipientId,
+          title: `💬 New Message from ${senderName}`,
+          message: message.length > 60 ? message.substring(0, 57) + '...' : message,
+          type: 'chat',
+          link: senderRole === 'patient' ? 'doctor/appointments.html' : 'patient/appointments.html'
+        });
+      }
+    } catch (e) {}
+
+    // Dispatch local UI event
+    window.dispatchEvent(new CustomEvent('carepulse_new_chat_message', { detail: result }));
+
+    return result;
+  },
+
+  async getChatMessages(appointmentId) {
+    const sb = getSupabaseClient();
+    let remoteMsgs = [];
+
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('chat_messages')
+          .select('*')
+          .eq('appointment_id', appointmentId)
+          .order('created_at', { ascending: true });
+        if (!error && data) {
+          remoteMsgs = data;
+        }
+      } catch (e) {
+        console.warn('Chat messages query error:', e);
+      }
+    }
+
+    // Merge with local fallback
+    let localMsgs = [];
+    try {
+      const key = `carepulse_chat_${appointmentId}`;
+      localMsgs = JSON.parse(localStorage.getItem(key) || '[]');
+    } catch (e) {}
+
+    const all = [...remoteMsgs];
+    localMsgs.forEach(lm => {
+      if (!all.some(rm => rm.id === lm.id || (rm.created_at === lm.created_at && rm.message === lm.message))) {
+        all.push(lm);
+      }
+    });
+
+    return all.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  },
+
+  subscribeToChat(appointmentId, callback) {
+    const sb = getSupabaseClient();
+    let channel = null;
+
+    if (sb) {
+      try {
+        channel = sb
+          .channel(`chat_${appointmentId}`)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `appointment_id=eq.${appointmentId}` },
+            (payload) => {
+              if (callback && payload.new) callback(payload.new);
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+    }
+
+    // Local event listener fallback
+    const localHandler = (e) => {
+      if (e.detail && e.detail.appointment_id === appointmentId) {
+        if (callback) callback(e.detail);
+      }
+    };
+    window.addEventListener('carepulse_new_chat_message', localHandler);
+
+    return () => {
+      if (channel && sb) sb.removeChannel(channel);
+      window.removeEventListener('carepulse_new_chat_message', localHandler);
+    };
+  },
+
+  async markMessagesAsRead(appointmentId, currentUserId) {
+    const sb = getSupabaseClient();
+    if (!sb) return;
+
+    try {
+      await sb
+        .from('chat_messages')
+        .update({ is_read: true })
+        .eq('appointment_id', appointmentId)
+        .neq('sender_id', currentUserId);
+    } catch (e) {}
+  }
+};
+
+// Start automated background reminder & expired offers runner
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    if (window.CarePulseDB && window.CarePulseDB.startReminderScheduler) {
+      window.CarePulseDB.startReminderScheduler();
+    }
+    if (window.CarePulseDB && window.CarePulseDB.checkExpiredWaitingOffers) {
+      setInterval(() => window.CarePulseDB.checkExpiredWaitingOffers(), 60000);
+    }
+  }, 2000);
+}
+

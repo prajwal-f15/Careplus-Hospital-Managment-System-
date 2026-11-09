@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospital Reports - CarePulse Hospital Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Manage Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Manage Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
+          <a href="reports.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="admin-reports-view" class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Hospital Operational Reports</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Comprehensive summaries of patient throughput, specialist allocation, and department fulfillment.</p>
+      </div>
+
+      <button onclick="window.print()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 self-start sm:self-auto">
+        <i data-lucide="printer" class="w-4 h-4"></i> Print / Export Report
+      </button>
+    </div>
+
+    <!-- Printable Report Container -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
+      <div class="border-b border-slate-100 pb-4">
+        <h3 class="font-bold text-base text-slate-900">Department Utilization & Consultation Fulfillment</h3>
+        <p class="text-xs text-slate-500">Breakdown of staff strength, total consultation load, and completion rates by medical wing.</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3 px-4">Department</th>
+              <th class="py-3 px-4">Specialists Assigned</th>
+              <th class="py-3 px-4">Total Consultations</th>
+              <th class="py-3 px-4">Completed Visits</th>
+              <th class="py-3 px-4">Cancelled / Rejected</th>
+            </tr>
+          </thead>
+          <tbody id="department-utilization-report">
+            <!-- Rendered by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['admin']);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appointment Details - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i
+              data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i
+              data-lucide="calendar-plus" class="w-4 h-4"></i> Book Appointment</a>
+          <a href="appointments.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="calendar"
+              class="w-4 h-4"></i> My Appointments</a>
+          <a href="family-members.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i
+              data-lucide="users" class="w-4 h-4"></i> Family Members</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i
+              data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="user"
+              class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-4xl mx-auto px-4 sm:px-6 w-full space-y-6">
+    <div class="flex items-center justify-between">
+      <a href="appointments.html"
+        class="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-sky-600 transition">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Appointments
+      </a>
+      <div id="action-buttons" class="flex items-center gap-2 flex-wrap justify-end"></div>
+    </div>
+
+    <!-- Appointment Card Main -->
+    <div id="appointment-detail-card"
+      class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-6">
+      <div class="text-center py-8 text-slate-400 text-xs">
+        <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600"></i>
+        Loading appointment details...
+      </div>
+    </div>
+  </main>
+
+  <!-- RESCHEDULE APPOINTMENT MODAL (Feature 2) -->
+  <div id="reschedule-modal"
+    class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="calendar-clock" class="w-5 h-5 text-sky-600"></i>
+          Reschedule Consultation
+        </h3>
+        <button onclick="closeRescheduleModal()" class="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600 space-y-1">
+        <div class="font-bold text-slate-900" id="reschedule-doc-name">Dr. Specialist</div>
+        <div>Current Schedule: <span id="reschedule-current-time" class="font-semibold text-slate-800">Date at
+            Time</span></div>
+        <div class="text-[11px] text-slate-400">Select a new date and 30-minute time slot to move your consultation.
+        </div>
+      </div>
+
+      <form id="reschedule-form" onsubmit="submitReschedule(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">New Appointment Date</label>
+          <input type="date" id="reschedule-date" required onchange="handleRescheduleDateChange(this.value)"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Available 30-Minute Time Slots</label>
+          <div id="reschedule-slots-container"
+            class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+            <div class="col-span-full py-4 text-center text-[11px] text-slate-400">Please pick a date first</div>
+          </div>
+          <input type="hidden" id="selected-reschedule-slot" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Reason for Rescheduling (Optional)</label>
+          <textarea id="reschedule-reason" rows="2" placeholder="e.g. Work schedule change, family emergency..."
+            class="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <button type="button" onclick="closeRescheduleModal()"
+            class="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+            Cancel
+          </button>
+          <button type="submit" id="confirm-reschedule-btn"
+            class="w-1/2 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Confirm Reschedule
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Review Modal -->
+  <div id="review-modal"
+    class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900">Rate Your Doctor Consultation</h3>
+        <button onclick="document.getElementById('review-modal').classList.add('hidden')"
+          class="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="review-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Your Rating (1 to 5 Stars)</label>
+          <div class="flex items-center gap-2" id="star-rating-select">
+            <button type="button" onclick="setStarRating(1)" class="text-2xl text-amber-400 star-btn"
+              data-star="1">★</button>
+            <button type="button" onclick="setStarRating(2)" class="text-2xl text-amber-400 star-btn"
+              data-star="2">★</button>
+            <button type="button" onclick="setStarRating(3)" class="text-2xl text-amber-400 star-btn"
+              data-star="3">★</button>
+            <button type="button" onclick="setStarRating(4)" class="text-2xl text-amber-400 star-btn"
+              data-star="4">★</button>
+            <button type="button" onclick="setStarRating(5)" class="text-2xl text-amber-400 star-btn"
+              data-star="5">★</button>
+          </div>
+          <input type="hidden" id="selected-rating" value="5">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Feedback / Comment</label>
+          <textarea id="review-comment" rows="3" placeholder="Describe your experience with the doctor..."
+            class="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <button type="submit"
+          class="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition">Submit
+          Review</button>
+      </form>
+    </div>
+  </div>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/appointments.js"></script>
+  <script src="../js/pdf-receipt.js"></script>
+  <script src="../js/chat.js"></script>
+  <script>
+    lucide.createIcons();
+    let currentAppointment = null;
+
+    function getParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+
+    function setStarRating(val) {
+      document.getElementById('selected-rating').value = val;
+      document.querySelectorAll('.star-btn').forEach((btn, idx) => {
+        btn.className = idx < val ? 'text-2xl text-amber-400 star-btn' : 'text-2xl text-slate-200 star-btn';
+      });
+    }
+
+    function openDoctorChat() {
+      if (!currentAppointment) return;
+      if (!window.CarePulseChat) {
+        window.showToast('Chat system is loading...', 'info');
+        return;
+      }
+      window.CarePulseChat.openChat({
+        appointmentId: currentAppointment.id,
+        doctorId: currentAppointment.doctor_id,
+        patientId: currentAppointment.patient_id,
+        otherPartyName: currentAppointment.doctor_name || 'Doctor',
+        otherPartyRole: 'doctor',
+        otherPartySubtitle: `${currentAppointment.specialization || 'Specialist'} - ${currentAppointment.department_name || ''}`,
+        tokenNumber: currentAppointment.token_number || 'APPT'
+      });
+    }
+
+    async function loadAppointmentDetails() {
+      const apptId = getParam('id');
+      if (!apptId) {
+        window.location.href = 'appointments.html';
+        return;
+      }
+
+      const card = document.getElementById('appointment-detail-card');
+      const actionBtns = document.getElementById('action-buttons');
+      const appointments = await window.CarePulseDB.getAppointments();
+      const appt = appointments.find(a => a.id === apptId);
+
+      if (!appt) {
+        card.innerHTML = `<div class="text-center py-8 text-rose-500 text-xs">Appointment not found.</div>`;
+        return;
+      }
+
+      currentAppointment = appt;
+      const isCompleted = appt.status === 'completed';
+      const isConfirmed = ['confirmed', 'pending'].includes(appt.status);
+      const isCheckedIn = appt.status === 'checked_in' || appt.status === 'checked-in' || !!appt.checked_in_at;
+      const isToday = appt.appointment_date === new Date().toISOString().split('T')[0];
+      const canReschedule = window.CarePulseDB.canRescheduleAppointment(appt);
+
+      // Check Doctor Delay (Feature 5)
+      let doctorDelay = { delay_minutes: 0, delay_reason: '' };
+      try {
+        doctorDelay = await window.CarePulseDB.getDoctorDelay(appt.doctor_id);
+      } catch (e) { }
+
+      // Render Top Action Buttons
+      actionBtns.innerHTML = `
+        <button onclick="window.generateAppointmentReceiptPDF(currentAppointment)" class="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition flex items-center gap-1.5" title="Download Token Slip with QR Code">
+          <i data-lucide="download" class="w-4 h-4 text-sky-600"></i> Slip PDF
+        </button>
+        <button onclick="openDoctorChat()" class="px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-xs font-bold text-teal-800 shadow-sm transition flex items-center gap-1.5" title="Two-way Chat with Doctor">
+          <i data-lucide="message-square" class="w-4 h-4 text-teal-600"></i> Chat with Doctor
+        </button>
+        ${canReschedule ? `
+        <button onclick="openRescheduleModal()" class="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="calendar-clock" class="w-4 h-4"></i> Reschedule
+        </button>` : ''}
+        ${isToday && isConfirmed && !isCheckedIn ? `
+        <button onclick="checkIn('${appt.id}')" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="check-circle" class="w-4 h-4"></i> Check-in Now
+        </button>` : ''}
+        ${isCompleted ? `
+        <button onclick="document.getElementById('review-modal').classList.remove('hidden')" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="star" class="w-4 h-4"></i> Rate Doctor
+        </button>` : ''}
+      `;
+
+      // Status Timeline Steps
+      const steps = [
+        { label: 'Booked', active: true },
+        { label: 'Confirmed', active: ['confirmed', 'checked_in', 'called', 'in_consultation', 'completed'].includes(appt.status) },
+        { label: 'Checked In', active: ['checked_in', 'called', 'in_consultation', 'completed'].includes(appt.status) },
+        { label: 'In Room', active: ['called', 'in_consultation', 'completed'].includes(appt.status) },
+        { label: 'Completed', active: appt.status === 'completed' }
+      ];
+
+      // Fetch Consultation / Prescriptions if completed
+      let consultation = null;
+      if (isCompleted) {
+        consultation = await window.CarePulseDB.getConsultationByAppointment(appt.id);
+      }
+
+      card.innerHTML = `
+        <!-- Delay Alert Banner (Feature 5) -->
+        ${doctorDelay.delay_minutes > 0 ? `
+          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-amber-900">
+            <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-700">
+              <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+            <div class="text-xs">
+              <span class="font-bold">OPD Schedule Delay Notice:</span> Dr. ${appt.doctor_name} is running approximately <span class="font-bold underline">${doctorDelay.delay_minutes} minutes</span> behind schedule (${doctorDelay.delay_reason || 'OPD Delay'}). Your estimated waiting time has been adjusted.
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Header with Token & Status -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="token-badge text-sm">${appt.token_number}</span>
+              <span class="status-badge ${appt.status} uppercase">${appt.status.replace('_', ' ')}</span>
+              ${appt.reschedule_count > 0 ? `
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">Rescheduled (${appt.reschedule_count}x)</span>
+              ` : ''}
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mt-2">Consultation #${appt.appointment_number || appt.id.slice(0, 8)}</h2>
+            <p class="text-xs text-slate-400">Scheduled on ${appt.appointment_date} at ${window.CarePulseDB.formatTime12Hour(appt.time_slot || appt.appointment_time)}</p>
+          </div>
+
+          <!-- QR Pass Widget -->
+          <div class="flex items-center gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <div id="qrcode-box" class="w-16 h-16 bg-white p-1 rounded-xl shadow-xs flex items-center justify-center"></div>
+            <div class="space-y-1">
+              <div class="text-[10px] uppercase font-bold text-slate-400">Digital Pass</div>
+              <div class="text-xs font-bold text-slate-800">Scan at Reception</div>
+              <div class="text-[10px] font-mono text-slate-400">${appt.verification_hash || window.CarePulseDB.generateVerificationHash(appt)}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Status Timeline -->
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Consultation Progress</h4>
+          <div class="grid grid-cols-5 gap-2 text-center">
+            ${steps.map((s, idx) => `
+              <div class="space-y-1.5">
+                <div class="h-2 rounded-full ${s.active ? 'bg-sky-600 shadow-sm' : 'bg-slate-100'} transition"></div>
+                <span class="block text-[11px] font-bold ${s.active ? 'text-sky-700' : 'text-slate-400'}">${s.label}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Doctor & Clinic Information -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+          <div class="flex items-start gap-4">
+            <img src="${appt.doctor_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400'}" class="w-16 h-16 rounded-2xl object-cover border border-slate-200">
+            <div>
+              <h4 class="font-bold text-slate-900 text-base">${appt.doctor_name}</h4>
+              <p class="text-xs text-sky-700 font-semibold">${appt.doctor_specialization || 'Consultant Specialist'}</p>
+              <p class="text-xs text-slate-500 mt-1">${appt.department_name} • ${appt.room_number || 'Room 101'}</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+            <div class="flex justify-between"><span class="text-slate-500">Reason for Visit:</span><span class="font-semibold text-slate-800">${appt.reason || 'General Checkup'}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Priority Level:</span><span class="font-bold uppercase text-slate-700">${appt.priority || 'Normal'}</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">OPD Room:</span><span class="font-semibold text-slate-800">${appt.room_number || 'OPD Room 101'}</span></div>
+          </div>
+        </div>
+
+        <!-- Consultation Notes & Prescriptions (If Completed) -->
+        ${isCompleted ? `
+        <div class="mt-6 pt-6 border-t border-slate-100 space-y-4">
+          <div class="flex items-center gap-2 text-slate-900 font-bold text-sm">
+            <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
+            Doctor Diagnosis & Prescriptions
+          </div>
+
+          <div class="p-4 bg-teal-50/60 rounded-2xl border border-teal-100 space-y-2">
+            <div class="text-xs font-bold text-teal-900">Doctor's Notes:</div>
+            <p class="text-xs text-teal-800 leading-relaxed">${appt.doctor_notes || consultation?.notes || 'Patient attended consultation successfully.'}</p>
+          </div>
+
+          ${consultation && consultation.prescriptions && consultation.prescriptions.length > 0 ? `
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-slate-700">Digital Prescription:</div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs bg-white rounded-xl border border-slate-200">
+                <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th class="py-2.5 px-3">Medicine</th>
+                    <th class="py-2.5 px-3">Dosage</th>
+                    <th class="py-2.5 px-3">Frequency</th>
+                    <th class="py-2.5 px-3">Duration</th>
+                    <th class="py-2.5 px-3">Instructions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${consultation.prescriptions.map(p => `
+                    <tr>
+                      <td class="py-2.5 px-3 font-bold text-slate-900">${p.medicine}</td>
+                      <td class="py-2.5 px-3 text-slate-600">${p.dosage}</td>
+                      <td class="py-2.5 px-3 text-slate-600">${p.frequency}</td>
+                      <td class="py-2.5 px-3 text-slate-600">${p.duration}</td>
+                      <td class="py-2.5 px-3 text-slate-500">${p.instructions || 'After meals'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+      `;
+
+      if (window.lucide) window.lucide.createIcons();
+
+      // Render Secure QR Code
+      const qrContainer = document.getElementById('qrcode-box');
+      if (qrContainer && window.QRCode) {
+        qrContainer.innerHTML = '';
+        const qrPayload = window.CarePulseDB.generateAppointmentQRCodeData(appt);
+        new window.QRCode(qrContainer, {
+          text: qrPayload,
+          width: 56,
+          height: 56,
+          colorDark: "#0f172a",
+          colorLight: "#ffffff",
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+      }
+    }
+
+    // Reschedule Modal Logic (Feature 2)
+    function openRescheduleModal() {
+      if (!currentAppointment) return;
+      document.getElementById('reschedule-doc-name').innerText = currentAppointment.doctor_name;
+      document.getElementById('reschedule-current-time').innerText = `${currentAppointment.appointment_date} at ${window.CarePulseDB.formatTime12Hour(currentAppointment.time_slot || currentAppointment.appointment_time)}`;
+
+      const dateInput = document.getElementById('reschedule-date');
+      const todayStr = new Date().toISOString().split('T')[0];
+      dateInput.min = todayStr;
+
+      const maxDate = new Date();
+      maxDate.setDate(maxDate.getDate() + 30);
+      dateInput.max = maxDate.toISOString().split('T')[0];
+      dateInput.value = '';
+
+      document.getElementById('selected-reschedule-slot').value = '';
+      document.getElementById('reschedule-slots-container').innerHTML = '<div class="col-span-full py-4 text-center text-[11px] text-slate-400">Please choose a date above</div>';
+      document.getElementById('reschedule-modal').classList.remove('hidden');
+    }
+
+    function closeRescheduleModal() {
+      document.getElementById('reschedule-modal').classList.add('hidden');
+    }
+
+    async function handleRescheduleDateChange(dateStr) {
+      if (!dateStr || !currentAppointment) return;
+      const slotsContainer = document.getElementById('reschedule-slots-container');
+      slotsContainer.innerHTML = '<div class="col-span-full py-4 text-center text-xs text-slate-400"><i data-lucide="loader" class="w-4 h-4 animate-spin inline mr-1"></i> Checking available slots...</div>';
+      if (window.lucide) window.lucide.createIcons();
+
+      try {
+        const slotData = await window.AppointmentEngine.getDoctorSlotsForDate(currentAppointment.doctor_id, dateStr);
+
+        if (!slotData.available) {
+          slotsContainer.innerHTML = `<div class="col-span-full py-4 text-center text-xs font-semibold text-rose-600">${slotData.message}</div>`;
+          return;
+        }
+
+        const now = new Date();
+        const isToday = dateStr === now.toISOString().split('T')[0];
+        const currentTimeStr = now.toTimeString().substring(0, 5);
+
+        const openSlots = slotData.slots.filter(s => {
+          if (s.isBooked) return false;
+          if (isToday && s.timeValue <= currentTimeStr) return false;
+          return true;
+        });
+
+        if (openSlots.length === 0) {
+          slotsContainer.innerHTML = '<div class="col-span-full py-4 text-center text-xs text-slate-500">No open slots available on this date. All slots are booked.</div>';
+          return;
+        }
+
+        slotsContainer.innerHTML = openSlots.map(s => `
+          <button type="button" onclick="selectRescheduleSlot('${s.timeValue}', this)" class="reschedule-slot-btn py-2 px-1 text-center rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:border-sky-500 hover:bg-sky-50 transition">
+            ${s.displayTime}
+          </button>
+        `).join('');
+      } catch (err) {
+        slotsContainer.innerHTML = `<div class="col-span-full py-3 text-center text-xs text-rose-500">${err.message}</div>`;
+      }
+    }
+
+    function selectRescheduleSlot(timeValue, btnElem) {
+      document.getElementById('selected-reschedule-slot').value = timeValue;
+      document.querySelectorAll('.reschedule-slot-btn').forEach(b => {
+        b.className = 'reschedule-slot-btn py-2 px-1 text-center rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:border-sky-500 hover:bg-sky-50 transition';
+      });
+      btnElem.className = 'reschedule-slot-btn py-2 px-1 text-center rounded-xl border-2 border-sky-600 bg-sky-600 text-white text-xs font-bold shadow-xs transition';
+    }
+
+    async function submitReschedule(e) {
+      e.preventDefault();
+      const newDate = document.getElementById('reschedule-date').value;
+      const newSlot = document.getElementById('selected-reschedule-slot').value;
+      const reason = document.getElementById('reschedule-reason').value.trim();
+
+      if (!newDate || !newSlot) {
+        alert('Please pick a date and select an available time slot.');
+        return;
+      }
+
+      const submitBtn = document.getElementById('confirm-reschedule-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin inline"></i> Rescheduling...';
+
+      try {
+        await window.CarePulseDB.rescheduleAppointment(currentAppointment.id, newDate, newSlot, reason);
+        closeRescheduleModal();
+        alert('✓ Appointment rescheduled successfully!');
+        loadAppointmentDetails();
+      } catch (err) {
+        alert('Rescheduling error: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Confirm Reschedule';
+      }
+    }
+
+    async function checkIn(id) {
+      try {
+        await window.CarePulseDB.checkInAppointment(id);
+        alert('Checked in successfully! Proceed to waiting room.');
+        loadAppointmentDetails();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    document.getElementById('review-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = window.Auth.getCurrentUser();
+      if (!user || !currentAppointment) return;
+
+      const rating = document.getElementById('selected-rating').value;
+      const comment = document.getElementById('review-comment').value.trim();
+
+      try {
+        await window.CarePulseDB.addReview({
+          doctor_id: currentAppointment.doctor_id,
+          patient_id: user.id,
+          appointment_id: currentAppointment.id,
+          rating,
+          comment
+        });
+        alert('Thank you! Your review has been submitted.');
+        document.getElementById('review-modal').classList.add('hidden');
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['patient']);
+      loadAppointmentDetails();
+    });
+  </script>
+</body>
+
+</html>

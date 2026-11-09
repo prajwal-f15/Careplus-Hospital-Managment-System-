@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 min-h-screen flex flex-col justify-between">
+
+  <!-- Header -->
+  <header class="py-6 px-4 sm:px-8 flex items-center justify-between">
+    <a href="index.html" class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+        <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+      </div>
+      <span class="text-xl font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+    </a>
+    <a href="login.html" class="text-xs font-bold text-sky-600 hover:underline">Already registered? Log In</a>
+  </header>
+
+  <!-- Register Card -->
+  <main class="max-w-lg w-full mx-auto px-4 py-6">
+    <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl space-y-6">
+      <div class="text-center space-y-1">
+        <h1 class="text-2xl font-black text-slate-900">Create Account</h1>
+        <p class="text-xs text-slate-500">Register as a Patient to book slots or as a Medical Specialist</p>
+      </div>
+
+      <!-- Role Selector Tabs -->
+      <div class="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+        <button type="button" id="role-tab-patient" onclick="setRegisterRole('patient')" class="py-2.5 text-xs font-bold rounded-xl bg-white text-sky-700 shadow-sm transition">
+          👤 I am a Patient
+        </button>
+        <button type="button" id="role-tab-doctor" onclick="setRegisterRole('doctor')" class="py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition">
+          👨‍⚕️ I am a Doctor
+        </button>
+      </div>
+
+      <form id="register-form" class="space-y-4">
+        <input type="hidden" id="reg-role" value="patient">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Full Legal Name</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+            <input type="text" id="reg-name" required placeholder="e.g. John Doe / Dr. Sarah" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+            <div class="relative">
+              <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+              <input type="email" id="reg-email" required placeholder="name@domain.com" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+            <div class="relative">
+              <i data-lucide="phone" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+              <input type="tel" id="reg-phone" required placeholder="+1 (555) 000-0000" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+            <input type="password" id="reg-password" required minlength="6" placeholder="At least 6 characters" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <!-- Doctor Specific Fields -->
+        <div id="doctor-extra-fields" class="hidden space-y-4 pt-2 border-t border-slate-100">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Specialization / Designation</label>
+            <input type="text" id="reg-specialization" placeholder="e.g. Consultant Orthopedic Surgeon" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Clinical Department</label>
+              <select id="reg-department" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Years of Experience</label>
+              <input type="number" id="reg-experience" min="0" value="5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Qualifications / Degrees</label>
+            <input type="text" id="reg-qualification" placeholder="e.g. MBBS, MD (Cardiology), FACC" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <!-- Inline Error Display -->
+        <div id="reg-error-box" class="hidden p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 font-medium">
+          <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
+          <span id="reg-error-text"></span>
+        </div>
+
+        <button type="submit" id="reg-btn" class="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 transition flex items-center justify-center gap-2">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Complete Registration
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="py-4 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    lucide.createIcons();
+
+    // Load departments into select
+    window.CarePulseDB.getDepartments().then(depts => {
+      const select = document.getElementById('reg-department');
+      if (select) {
+        select.innerHTML = depts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+      }
+    });
+
+    function setRegisterRole(role) {
+      document.getElementById('reg-role').value = role;
+      const patientTab = document.getElementById('role-tab-patient');
+      const doctorTab = document.getElementById('role-tab-doctor');
+      const docFields = document.getElementById('doctor-extra-fields');
+
+      if (role === 'doctor') {
+        doctorTab.className = 'py-2.5 text-xs font-bold rounded-xl bg-white text-teal-700 shadow-sm transition';
+        patientTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
+        docFields.classList.remove('hidden');
+      } else {
+        patientTab.className = 'py-2.5 text-xs font-bold rounded-xl bg-white text-sky-700 shadow-sm transition';
+        doctorTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
+        docFields.classList.add('hidden');
+      }
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('reg-error-box');
+      const errText = document.getElementById('reg-error-text');
+      errBox.classList.add('hidden');
+
+      const role = document.getElementById('reg-role').value;
+      const full_name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const phone = document.getElementById('reg-phone').value.trim();
+      const password = document.getElementById('reg-password').value;
+
+      const payload = { full_name, email, phone, role, password };
+
+      if (role === 'doctor') {
+        payload.specialization = document.getElementById('reg-specialization').value || 'Medical Specialist';
+        payload.department_id = document.getElementById('reg-department').value;
+        payload.qualification = document.getElementById('reg-qualification').value || 'MBBS';
+        payload.experience_years = Number(document.getElementById('reg-experience').value || 1);
+      }
+
+      const btn = document.getElementById('reg-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Creating Account...';
+      if (window.lucide) window.lucide.createIcons();
+
+      try {
+        const result = await window.Auth.register(payload);
+        
+        // Auto-login and redirect straight to the user's dashboard
+        try {
+          await window.Auth.login(email, password);
+          window.location.href = `${role}/index.html`;
+        } catch (loginErr) {
+          window.location.href = `login.html?registered=1&email=${encodeURIComponent(email)}`;
+        }
+      } catch (err) {
+        errText.innerText = err.message || 'Registration failed. Please check your information.';
+        errBox.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="user-plus" class="w-4 h-4"></i> Complete Registration';
+        if (window.lucide) window.lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>

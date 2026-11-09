@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="verify-appointment.html" class="hover:text-emerald-400 text-emerald-400 flex items-center gap-1.5 transition font-extrabold"><i data-lucide="qr-code" class="w-4 h-4"></i> Scan Patient QR</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Manage Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Manage Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ADMIN DASHBOARD MAIN -->
+  <main id="admin-dashboard-view" class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Hospital Administration & Analytics</h1>
+        <p class="text-xs text-slate-500 mt-0.5">High-level hospital metrics, appointment lifecycle monitoring, and specialist allocation.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="verify-appointment.html" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5">
+          <i data-lucide="qr-code" class="w-4 h-4"></i> Scan Patient Slip QR
+        </a>
+        <a href="doctors.html" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Add Doctor
+        </a>
+      </div>
+    </div>
+
+    <!-- 7 Stat Counter Cards (STRICTLY NO REVENUE / BILLING) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-slate-400 font-bold uppercase">Patients</span>
+        <div id="stat-admin-patients" class="text-2xl font-black text-slate-900 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-slate-400 font-bold uppercase">Doctors</span>
+        <div id="stat-admin-doctors" class="text-2xl font-black text-sky-600 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-slate-400 font-bold uppercase">Total Bookings</span>
+        <div id="stat-admin-appointments" class="text-2xl font-black text-slate-900 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-amber-500 font-bold uppercase">Pending</span>
+        <div id="stat-admin-pending" class="text-2xl font-black text-amber-600 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-sky-500 font-bold uppercase">Confirmed</span>
+        <div id="stat-admin-confirmed" class="text-2xl font-black text-sky-600 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <span class="text-[11px] text-emerald-500 font-bold uppercase">Completed</span>
+        <div id="stat-admin-completed" class="text-2xl font-black text-emerald-600 mt-1">0</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
+        <span class="text-[11px] text-rose-500 font-bold uppercase">Cancelled</span>
+        <div id="stat-admin-cancelled" class="text-2xl font-black text-rose-600 mt-1">0</div>
+      </div>
+    </div>
+
+    <!-- Chart.js Analytics Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Daily Appointment Volume Chart -->
+      <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+            <i data-lucide="trending-up" class="w-4 h-4 text-teal-600"></i> Daily Booking Volume (Past 7 Days)
+          </h3>
+          <span class="text-[11px] text-slate-400">Real-time database records</span>
+        </div>
+        <div class="h-64 relative">
+          <canvas id="chart-daily-appointments"></canvas>
+        </div>
+      </div>
+
+      <!-- Status Breakdown Doughnut Chart -->
+      <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-sky-600"></i> Status Distribution
+          </h3>
+        </div>
+        <div class="h-64 relative">
+          <canvas id="chart-status-breakdown"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doctors By Department Distribution -->
+    <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-sky-600"></i> Specialists by Department
+        </h3>
+        <span class="text-[11px] text-slate-400">Physician Roster Balance</span>
+      </div>
+      <div class="h-64 relative">
+        <canvas id="chart-specialization-distribution"></canvas>
+      </div>
+    </div>
+
+    <!-- Master Recent Appointments Activity -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-slate-900">Recent Hospital Activity</h3>
+        <a href="appointments.html" class="text-xs font-bold text-sky-600 hover:underline">Manage All Appointments →</a>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3 px-4">Token</th>
+              <th class="py-3 px-4">Patient</th>
+              <th class="py-3 px-4">Physician</th>
+              <th class="py-3 px-4">Scheduled Date</th>
+              <th class="py-3 px-4">Current Status</th>
+            </tr>
+          </thead>
+          <tbody id="admin-recent-appointments">
+            <!-- Rendered by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['admin']);
+    });
+  </script>
+</body>
+</html>

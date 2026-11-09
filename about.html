@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Us - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-6 h-6 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-xl font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Hospital Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 transition">Home</a>
+          <a href="doctors.html" class="hover:text-sky-600 transition">Find Doctors</a>
+          <a href="departments.html" class="hover:text-sky-600 transition">Departments</a>
+          <a href="about.html" class="text-sky-600">About Us</a>
+          <a href="contact.html" class="hover:text-sky-600 transition">Contact</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-16">
+    <div class="text-center max-w-3xl mx-auto space-y-4">
+      <span class="text-xs font-bold uppercase tracking-wider text-sky-600">Healthcare Innovation</span>
+      <h1 class="text-3xl sm:text-5xl font-black text-slate-900 leading-tight">Committed to Clinical Excellence & Patient Dignity</h1>
+      <p class="text-sm sm:text-base text-slate-600 font-normal leading-relaxed">
+        CarePulse Central Hospital integrates cutting-edge medical technologies, certified super-specialists, and a patient-first digital queue ecosystem to minimize waiting times and maximize clinical outcomes.
+      </p>
+    </div>
+
+    <!-- Core Values Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Patient-Centric Care</h3>
+        <p class="text-xs text-slate-500 leading-relaxed">We respect our patients' time with guaranteed slot scheduling, clear token systems, and transparent physician ratings.</p>
+      </div>
+
+      <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+          <i data-lucide="award" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Certified Specialists</h3>
+        <p class="text-xs text-slate-500 leading-relaxed">Our doctors hold credentials from leading global medical councils with decades of combined inpatient and surgical experience.</p>
+      </div>
+
+      <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+          <i data-lucide="clock" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Zero Wait Queuing</h3>
+        <p class="text-xs text-slate-500 leading-relaxed">Our live token algorithm lets patients track consultation status from anywhere, avoiding crowded waiting lounges.</p>
+      </div>
+    </div>
+
+    <!-- Hospital Statistics Grid -->
+    <div class="bg-gradient-to-r from-sky-900 to-slate-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div>
+          <div class="text-3xl sm:text-4xl font-black text-teal-300">50+</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">Senior Doctors</div>
+        </div>
+        <div>
+          <div class="text-3xl sm:text-4xl font-black text-sky-300">8</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">Specialized Wings</div>
+        </div>
+        <div>
+          <div class="text-3xl sm:text-4xl font-black text-emerald-300">25,000+</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">Patients Treated</div>
+        </div>
+        <div>
+          <div class="text-3xl sm:text-4xl font-black text-amber-300">4.9 ★</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">Patient Satisfaction</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

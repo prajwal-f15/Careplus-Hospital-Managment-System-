@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Doctors - CarePulse Hospital Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="doctors.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="stethoscope" class="w-4 h-4"></i> Manage Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Manage Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Hospital Medical Staff & Doctors</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Add new specialist profiles, toggle verification status, and manage clinic rooms.</p>
+      </div>
+
+      <button onclick="openNewDoctorModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 self-start sm:self-auto">
+        <i data-lucide="user-plus" class="w-4 h-4"></i> Add Specialist Doctor
+      </button>
+    </div>
+
+    <!-- Search & Filter Bar -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-3">
+      <div class="relative w-full sm:w-72">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        <input type="text" id="admin-doc-search" oninput="window.AdminApp.filterDoctors()" placeholder="Search doctor name, spec, room..." class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+      </div>
+      <div class="w-full sm:w-auto flex items-center gap-2">
+        <select id="admin-doc-dept-filter" onchange="window.AdminApp.filterDoctors()" class="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Departments</option>
+        </select>
+        <select id="admin-doc-verify-filter" onchange="window.AdminApp.filterDoctors()" class="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Verification</option>
+          <option value="verified">Verified Only</option>
+          <option value="unverified">Pending Verification</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Doctors Table -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Doctor</th>
+              <th class="py-3.5 px-4">Department & Specialization</th>
+              <th class="py-3.5 px-4">Room & Contact</th>
+              <th class="py-3.5 px-4">Experience</th>
+              <th class="py-3.5 px-4">Verification</th>
+              <th class="py-3.5 px-4">Today's Status</th>
+              <th class="py-3.5 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-doctors-table-body">
+            <!-- Rendered by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ADD / EDIT DOCTOR MODAL -->
+  <div id="add-doctor-modal" class="modal-overlay">
+    <div class="modal-box p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 id="modal-doctor-title" class="font-bold text-sm text-slate-900 flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-4 h-4 text-sky-600"></i> Add New Specialist Doctor
+        </h3>
+        <button onclick="document.getElementById('add-doctor-modal').classList.remove('active')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="save-doctor-form" onsubmit="window.AdminApp.saveDoctorForm(event)" class="space-y-4">
+        <input type="hidden" id="modal-doctor-id">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Doctor Full Name *</label>
+            <input type="text" id="modal-doctor-name" required placeholder="Dr. Jane Smith" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Email Address *</label>
+            <input type="email" id="modal-doctor-email" required placeholder="doctor@hospital.com" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Department *</label>
+            <select id="modal-doctor-dept" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <!-- Rendered dynamically -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Specialization Title *</label>
+            <input type="text" id="modal-doctor-spec" required placeholder="e.g. Interventional Cardiologist" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Qualification *</label>
+            <input type="text" id="modal-doctor-qual" required placeholder="MBBS, MD" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Experience (Yrs)</label>
+            <input type="number" id="modal-doctor-exp" min="0" value="5" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Fee ($)</label>
+            <input type="number" id="modal-doctor-fee" min="0" value="50" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Contact Phone</label>
+            <input type="tel" id="modal-doctor-phone" placeholder="+1 (555) 000-0000" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Room / Wing</label>
+            <input type="text" id="modal-doctor-room" placeholder="Wing A - Room 101" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Profile Photo URL</label>
+          <input type="url" id="modal-doctor-image" placeholder="https://images.unsplash.com/..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Doctor Biography & Clinical Expertise</label>
+          <textarea id="modal-doctor-about" rows="2" placeholder="Brief summary of clinical achievements, subspecialties, and patient care approach..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+        </div>
+
+        <div class="flex items-center gap-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="modal-doctor-verified" class="w-4 h-4 text-sky-600 rounded focus:ring-sky-500">
+            <span class="text-xs font-bold text-slate-700">Verified Doctor</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="modal-doctor-available" checked class="w-4 h-4 text-teal-600 rounded focus:ring-teal-500">
+            <span class="text-xs font-bold text-slate-700">Available Today for OPD</span>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="document.getElementById('add-doctor-modal').classList.remove('active')" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow">
+            Save Doctor
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['admin']);
+    });
+
+    function openNewDoctorModal() {
+      document.getElementById('modal-doctor-title').innerText = 'Add New Specialist Doctor';
+      document.getElementById('modal-doctor-id').value = '';
+      document.getElementById('save-doctor-form').reset();
+      document.getElementById('add-doctor-modal').classList.add('active');
+    }
+  </script>
+</body>
+</html>

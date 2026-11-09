@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage OPD Rooms - CarePulse Hospital Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appts</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Depts</a>
+          <a href="rooms.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="door-open" class="w-4 h-4"></i> Rooms</a>
+          <a href="verify-appointment.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="qr-code" class="w-4 h-4"></i> Verify</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+          <a href="audit-logs.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="shield" class="w-4 h-4"></i> Audit</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Hospital OPD Rooms & Clinics</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Manage consultation chambers, clinic allocations, and maintenance statuses.</p>
+      </div>
+
+      <button onclick="openAddRoomModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 self-start sm:self-auto">
+        <i data-lucide="plus" class="w-4 h-4"></i> Add OPD Room
+      </button>
+    </div>
+
+    <!-- Rooms Master Table -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3 px-4">Room Number</th>
+              <th class="py-3 px-4">Clinical Department</th>
+              <th class="py-3 px-4">Location (Floor & Wing)</th>
+              <th class="py-3 px-4">Status</th>
+              <th class="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rooms-table-body" class="divide-y divide-slate-100 font-medium">
+            <tr><td colspan="5" class="text-center py-8 text-slate-400">Loading OPD rooms...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add Room Modal -->
+  <div id="room-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900">Add Consultation Room</h3>
+        <button onclick="closeAddRoomModal()" class="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="room-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Room Number *</label>
+          <input type="text" id="room-number" required placeholder="e.g. Room 204" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Department</label>
+          <select id="room-dept" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Floor</label>
+            <input type="text" id="room-floor" placeholder="e.g. 2nd Floor" value="1st Floor" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Wing</label>
+            <input type="text" id="room-wing" placeholder="e.g. Wing B" value="Main Wing" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Status</label>
+          <select id="room-status" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            <option value="active">Active / Available</option>
+            <option value="occupied">Occupied</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+          <button type="button" onclick="closeAddRoomModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Save Room
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    lucide.createIcons();
+
+    function openAddRoomModal() {
+      document.getElementById('room-modal').classList.remove('hidden');
+    }
+
+    function closeAddRoomModal() {
+      document.getElementById('room-modal').classList.add('hidden');
+      document.getElementById('room-form').reset();
+    }
+
+    async function loadRooms() {
+      const tableBody = document.getElementById('rooms-table-body');
+      const deptSelect = document.getElementById('room-dept');
+
+      const [rooms, departments] = await Promise.all([
+        window.CarePulseDB.getRooms(),
+        window.CarePulseDB.getDepartments()
+      ]);
+
+      if (deptSelect) {
+        deptSelect.innerHTML = departments.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join('');
+      }
+
+      if (rooms.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">No rooms configured yet.</td></tr>`;
+        return;
+      }
+
+      tableBody.innerHTML = rooms.map(r => `
+        <tr class="hover:bg-slate-50/75 transition">
+          <td class="py-3 px-4 font-bold text-slate-900">${r.room_number}</td>
+          <td class="py-3 px-4 text-sky-700 font-semibold">${r.department_name}</td>
+          <td class="py-3 px-4 text-slate-500">${r.floor || '1st Floor'} • ${r.wing || 'Main Wing'}</td>
+          <td class="py-3 px-4">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${r.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'}">
+              ${r.status.toUpperCase()}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-right">
+            <button onclick="deleteRoom('${r.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Delete Room">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function deleteRoom(id) {
+      if (confirm('Are you sure you want to delete this OPD room?')) {
+        try {
+          await window.CarePulseDB.deleteRoom(id);
+          window.showToast('Room deleted successfully.', 'info');
+          loadRooms();
+        } catch (e) {
+          window.showToast(e.message, 'error');
+        }
+      }
+    }
+
+    document.getElementById('room-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const room_number = document.getElementById('room-number').value.trim();
+      const department_id = document.getElementById('room-dept').value || null;
+      const floor = document.getElementById('room-floor').value.trim() || '1st Floor';
+      const wing = document.getElementById('room-wing').value.trim() || 'Main Wing';
+      const status = document.getElementById('room-status').value;
+
+      try {
+        await window.CarePulseDB.addRoom({
+          room_number,
+          department_id,
+          floor,
+          wing,
+          status
+        });
+        window.showToast('OPD room created successfully!', 'success');
+        closeAddRoomModal();
+        loadRooms();
+      } catch (err) {
+        window.showToast(err.message, 'error');
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadRooms();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "public": true,
+  "cleanUrls": true,
+  "routes": [
+    { "src": "/patient", "dest": "/patient/index.html" },
+    { "src": "/doctor", "dest": "/doctor/index.html" },
+    { "src": "/admin", "dest": "/admin/index.html" }
+  ]
+}

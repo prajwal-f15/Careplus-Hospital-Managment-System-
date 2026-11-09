@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Appointment - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="calendar-plus" class="w-4 h-4"></i> Book Appointment</a>
+          <a href="appointments.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> My Appointments</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="notifications.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="bell" class="w-4 h-4"></i> Notifications</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="booking-wizard-container" class="flex-grow py-8 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+    <div class="mb-6">
+      <h1 class="text-2xl font-black text-slate-900">Book Doctor Consultation</h1>
+      <p class="text-xs text-slate-500 mt-1">Select department, specialist, date, and your preferred consultation time slot.</p>
+    </div>
+
+    <form id="booking-confirm-form" class="space-y-6">
+      <!-- Step 0: Patient Selection (Self or Family Member) -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-sky-700 flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs">0</span>
+          Appointment For
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Who is this consultation for?</label>
+            <select id="wizard-patient-type" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="self">Myself (Account Holder)</option>
+              <!-- Populated with family members dynamically -->
+            </select>
+          </div>
+          <div class="flex items-end">
+            <a href="family-members.html" class="inline-flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 p-2.5">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Add New Family Member
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1 & 2: Department & Doctor Selection -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-sky-700 flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs">1</span>
+          Choose Department & Medical Specialist
+        </h3>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Department</label>
+            <select id="wizard-dept-select" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <!-- Rendered by patient.js -->
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Select Doctor</label>
+            <select id="wizard-doctor-select" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <!-- Rendered by patient.js -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Selected Doctor Summary Preview -->
+        <div id="doctor-summary-card" class="hidden p-4 rounded-2xl bg-sky-50/50 border border-sky-100">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Step 3: Date & Live Slot Picker -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-sky-700 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs">2</span>
+            Select Date & Available Time Slot
+          </h3>
+          <span id="wizard-slots-message" class="text-xs font-bold text-slate-500"></span>
+        </div>
+
+        <div class="max-w-xs">
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Appointment Date</label>
+          <input type="date" id="wizard-date-input" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-2">Available 30-Minute Slots (Real-time conflict prevention)</label>
+          <div id="wizard-slots-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+            <div class="col-span-full py-6 text-center text-xs text-slate-400">
+              Please select a specialist doctor first to view available time slots.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Visit Details & Confirmation -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-sky-700 flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs">3</span>
+          Consultation Reason & Symptoms
+        </h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Primary Reason for Visit *</label>
+            <input type="text" id="wizard-reason-input" required placeholder="e.g. Chronic knee pain, routine cardiac checkup, skin rash" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Symptoms or Past Medical Notes (Optional)</label>
+            <textarea id="wizard-symptoms-input" rows="3" placeholder="Describe symptoms, duration, current medications..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-4">
+          <button type="submit" id="submit-booking-btn" class="px-8 py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-600/25 transition flex items-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Confirm Appointment & Generate Token
+          </button>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <!-- BOOKING SUCCESS MODAL -->
+  <div id="booking-success-modal" class="modal-overlay">
+    <div class="modal-box p-8 text-center space-y-6">
+      <div class="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
+        <i data-lucide="check-circle" class="w-8 h-8"></i>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-black text-slate-900">Appointment Booked Successfully!</h3>
+        <p class="text-xs text-slate-500 mt-1">Your consultation is scheduled and a digital queue token has been generated.</p>
+      </div>
+
+      <!-- Generated Token Card -->
+      <div class="bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-200/80 rounded-2xl p-6 text-center">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-sky-700">Digital Queue Token</span>
+        <div id="success-token-display" class="text-4xl font-black text-sky-900 mt-1">CARD-001</div>
+        <div class="flex items-center justify-center gap-4 text-xs text-slate-600 mt-3">
+          <span><strong>Date:</strong> <span id="success-date-display">2026-09-10</span></span>
+          <span><strong>Time:</strong> <span id="success-time-display">09:30 AM</span></span>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <button id="success-download-btn" class="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+          <i data-lucide="download" class="w-4 h-4"></i> Download Slip (PDF)
+        </button>
+        <a href="queue-status.html" class="w-full sm:w-auto px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition shadow-md">
+          Track Live Queue →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/pdf-receipt.js"></script>
+  <script src="../js/appointments.js"></script>
+  <script src="../js/patient.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['patient']);
+    });
+  </script>
+</body>
+</html>

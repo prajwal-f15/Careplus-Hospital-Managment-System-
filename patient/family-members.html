@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Members - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-plus" class="w-4 h-4"></i> Book Appointment</a>
+          <a href="appointments.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> My Appointments</a>
+          <a href="family-members.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="users" class="w-4 h-4"></i> Family Members</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Manage Family Members</h1>
+        <p class="text-xs text-slate-500 mt-1">Add your loved ones (parents, children, spouse) to easily schedule consultations for them.</p>
+      </div>
+
+      <button onclick="openAddMemberModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 transition flex items-center gap-2 self-start sm:self-auto">
+        <i data-lucide="user-plus" class="w-4 h-4"></i> Add Family Member
+      </button>
+    </div>
+
+    <!-- Members Grid -->
+    <div id="family-members-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="col-span-full py-12 text-center text-slate-400 text-xs">
+        <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600"></i>
+        Loading family members...
+      </div>
+    </div>
+  </main>
+
+  <!-- Add Member Modal -->
+  <div id="family-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <i data-lucide="users" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Add Family Member</h3>
+            <p class="text-xs text-slate-400">Store medical details for direct appointment booking</p>
+          </div>
+        </div>
+        <button onclick="closeAddMemberModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="family-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
+          <input type="text" id="fm-name" required placeholder="e.g. Meera Sharma" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Relationship</label>
+            <select id="fm-relationship" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+              <option value="Mother">Mother</option>
+              <option value="Father">Father</option>
+              <option value="Spouse">Spouse</option>
+              <option value="Child">Child</option>
+              <option value="Sibling">Sibling</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Gender</label>
+            <select id="fm-gender" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Date of Birth</label>
+            <input type="date" id="fm-dob" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Blood Group</label>
+            <select id="fm-blood" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+              <option value="">Unknown</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Phone Number (Optional)</label>
+          <input type="tel" id="fm-phone" placeholder="e.g. +91 9876543210" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeAddMemberModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition">Cancel</button>
+          <button type="submit" id="save-fm-btn" class="px-5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Save Member
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    lucide.createIcons();
+
+    function openAddMemberModal() {
+      document.getElementById('family-modal').classList.remove('hidden');
+    }
+
+    function closeAddMemberModal() {
+      document.getElementById('family-modal').classList.add('hidden');
+      document.getElementById('family-form').reset();
+    }
+
+    async function loadFamilyMembers() {
+      const user = window.Auth.getCurrentUser();
+      if (!user) return;
+
+      const grid = document.getElementById('family-members-grid');
+      const members = await window.CarePulseDB.getFamilyMembers(user.id);
+
+      if (members.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm">
+            <div class="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 mx-auto flex items-center justify-center mb-3">
+              <i data-lucide="users" class="w-7 h-7"></i>
+            </div>
+            <h3 class="text-base font-bold text-slate-800">No Family Members Added</h3>
+            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Add your family members to quickly book doctor appointments and maintain their consultation history.</p>
+            <button onclick="openAddMemberModal()" class="inline-flex items-center gap-1.5 mt-4 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm transition">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add First Member
+            </button>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      grid.innerHTML = members.map(m => `
+        <div class="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-white font-bold text-base shadow-sm">
+                  ${m.name.charAt(0)}
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-sm">${m.name}</h4>
+                  <span class="inline-block text-[11px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full mt-0.5">${m.relationship}</span>
+                </div>
+              </div>
+              <button onclick="deleteFamilyMember('${m.id}')" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition" title="Delete Member">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-100 space-y-1.5 text-xs text-slate-500">
+              <div class="flex items-center justify-between">
+                <span>Gender:</span>
+                <span class="font-semibold text-slate-700">${m.gender || 'Not specified'}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Date of Birth:</span>
+                <span class="font-semibold text-slate-700">${m.date_of_birth || 'Not specified'}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Blood Group:</span>
+                <span class="font-semibold text-rose-600">${m.blood_group || 'Not specified'}</span>
+              </div>
+              ${m.phone ? `
+              <div class="flex items-center justify-between">
+                <span>Contact:</span>
+                <span class="font-semibold text-slate-700">${m.phone}</span>
+              </div>` : ''}
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3 border-t border-slate-100">
+            <a href="book-appointment.html?family_member_id=${m.id}&name=${encodeURIComponent(m.name)}" class="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-sky-50 text-sky-700 text-xs font-bold transition flex items-center justify-center gap-1.5">
+              <i data-lucide="calendar-plus" class="w-4 h-4"></i> Book For ${m.name.split(' ')[0]}
+            </a>
+          </div>
+        </div>
+      `).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function deleteFamilyMember(id) {
+      if (confirm('Are you sure you want to remove this family member?')) {
+        try {
+          await window.CarePulseDB.deleteFamilyMember(id);
+          window.showToast('Family member removed', 'info');
+          loadFamilyMembers();
+        } catch (e) {
+          window.showToast(e.message, 'error');
+        }
+      }
+    }
+
+    document.getElementById('family-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = window.Auth.getCurrentUser();
+      if (!user) return;
+
+      const name = document.getElementById('fm-name').value.trim();
+      const relationship = document.getElementById('fm-relationship').value;
+      const gender = document.getElementById('fm-gender').value;
+      const date_of_birth = document.getElementById('fm-dob').value || null;
+      const blood_group = document.getElementById('fm-blood').value || null;
+      const phone = document.getElementById('fm-phone').value.trim() || null;
+
+      try {
+        await window.CarePulseDB.addFamilyMember({
+          patient_id: user.id,
+          name,
+          relationship,
+          gender,
+          date_of_birth,
+          blood_group,
+          phone
+        });
+        window.showToast('Family member added successfully!', 'success');
+        closeAddMemberModal();
+        loadFamilyMembers();
+      } catch (err) {
+        window.showToast(err.message, 'error');
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadFamilyMembers();
+    });
+  </script>
+</body>
+</html>

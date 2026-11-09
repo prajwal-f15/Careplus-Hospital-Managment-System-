@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor Dashboard - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- DOCTOR NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-sky-600 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-teal-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-teal-700">Doctor Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="text-teal-600 flex items-center gap-1.5"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="queue.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="appointments.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="schedule.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="clock" class="w-4 h-4"></i> Schedule</a>
+          <a href="leaves.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-off" class="w-4 h-4"></i> Leaves</a>
+          <a href="patients.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="reviews.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="star" class="w-4 h-4"></i> Reviews</a>
+          <a href="profile.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- DOCTOR DASHBOARD MAIN -->
+  <main id="doctor-dashboard-view" class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Physician Control Center</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Manage your daily consultation queue, call patients, and review incoming appointment requests.</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button onclick="window.DoctorApp.openDoctorQRScannerModal()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="qr-code" class="w-4 h-4"></i> Scan Patient QR
+        </button>
+        <button onclick="window.DoctorApp.openDelayModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="clock" class="w-4 h-4"></i> Report OPD Delay
+        </button>
+        <a href="schedule.html" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5">
+          <i data-lucide="calendar-range" class="w-4 h-4 text-teal-600"></i> Manage Availability
+        </a>
+      </div>
+    </div>
+
+    <!-- Active Doctor Delay Alert Banner (Feature 5) -->
+    <div id="doctor-dashboard-delay-banner" class="hidden"></div>
+
+    <!-- Active Consultation / Call Next Banner -->
+    <div id="active-consultation-banner"></div>
+
+    <!-- Quick Stats Row -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Today's Patients</span>
+        <div id="stat-today-total" class="text-3xl font-black text-slate-900 mt-1">0</div>
+        <p class="text-[11px] text-teal-600 mt-1">Scheduled for today</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Pending Requests</span>
+        <div id="stat-pending-requests" class="text-3xl font-black text-amber-500 mt-1">0</div>
+        <p class="text-[11px] text-amber-600 mt-1">Requires confirmation</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Completed Today</span>
+        <div id="stat-today-completed" class="text-3xl font-black text-emerald-600 mt-1">0</div>
+        <p class="text-[11px] text-emerald-600 mt-1">Consultations finished</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Patient Rating</span>
+        <div id="stat-doctor-rating" class="text-3xl font-black text-amber-400 mt-1">5.0 ★</div>
+        <p class="text-[11px] text-slate-400 mt-1">Verified patient feedback</p>
+      </div>
+    </div>
+
+    <!-- Pending Appointment Requests Section (Doctor Confirm / Reject) -->
+    <div class="bg-white rounded-3xl border border-amber-200/80 shadow-sm p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Pending Appointment Requests</h3>
+            <p class="text-xs text-slate-500">Review patient bookings: Accept/Confirm or Decline with reason</p>
+          </div>
+        </div>
+        <span id="pending-count-badge" class="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800">0 Pending</span>
+      </div>
+      <div id="doctor-pending-requests-list" class="divide-y divide-slate-100">
+        <div class="p-6 text-center text-xs text-slate-400">Loading pending requests...</div>
+      </div>
+    </div>
+
+    <!-- Today's Queue List -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-slate-900">Today's Patient Queue (Chronological)</h3>
+        <a href="appointments.html" class="text-xs font-bold text-teal-600 hover:underline">View All Requests →</a>
+      </div>
+
+      <div id="doctor-today-queue-list" class="divide-y divide-slate-100">
+        <div class="p-8 text-center text-xs text-slate-400">Loading today's queue list...</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Doctor Delay Reporting Modal (Feature 5) -->
+  <div id="doctor-delay-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Report OPD Delay</h3>
+            <p class="text-xs text-slate-400">Broadcast estimated delay to queued patients</p>
+          </div>
+        </div>
+        <button onclick="window.DoctorApp.closeDelayModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="doctor-delay-form" onsubmit="window.DoctorApp.submitDelay(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-2">Estimated Delay Time</label>
+          <div class="grid grid-cols-4 gap-2 mb-2">
+            <button type="button" onclick="window.DoctorApp.setDelayPreset(15)" class="py-2 rounded-xl border border-slate-200 text-xs font-bold hover:border-amber-500 hover:text-amber-600 focus:bg-amber-50 focus:border-amber-500 delay-preset-btn">15 Min</button>
+            <button type="button" onclick="window.DoctorApp.setDelayPreset(30)" class="py-2 rounded-xl border border-slate-200 text-xs font-bold hover:border-amber-500 hover:text-amber-600 focus:bg-amber-50 focus:border-amber-500 delay-preset-btn">30 Min</button>
+            <button type="button" onclick="window.DoctorApp.setDelayPreset(45)" class="py-2 rounded-xl border border-slate-200 text-xs font-bold hover:border-amber-500 hover:text-amber-600 focus:bg-amber-50 focus:border-amber-500 delay-preset-btn">45 Min</button>
+            <button type="button" onclick="window.DoctorApp.setDelayPreset(60)" class="py-2 rounded-xl border border-slate-200 text-xs font-bold hover:border-amber-500 hover:text-amber-600 focus:bg-amber-50 focus:border-amber-500 delay-preset-btn">60 Min</button>
+          </div>
+          <div class="relative">
+            <input type="number" id="doctor-delay-minutes" min="5" max="240" required placeholder="Or enter custom minutes (e.g. 25)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50 focus:bg-white pr-16">
+            <span class="absolute right-4 top-2.5 text-xs text-slate-400 font-bold">Minutes</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Reason for Delay</label>
+          <select id="doctor-delay-reason-select" onchange="window.DoctorApp.handleDelayReasonChange(this.value)" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50 focus:bg-white mb-2">
+            <option value="Emergency surgery / critical case">Emergency surgery / critical case</option>
+            <option value="Hospital rounds delayed">Hospital rounds delayed</option>
+            <option value="High patient volume / extended consultations">High patient volume / extended consultations</option>
+            <option value="Equipment maintenance / OPD sanitized">Equipment maintenance / OPD sanitized</option>
+            <option value="Doctor arriving shortly">Doctor arriving shortly</option>
+            <option value="Custom">Other (Specify below)...</option>
+          </select>
+          <input type="text" id="doctor-delay-reason-custom" placeholder="Detailed reason for patients..." class="w-full px-4 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50 focus:bg-white hidden">
+        </div>
+
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+          <span>Submitting this will immediately update the live queue dashboard for all waiting patients and send realtime notifications.</span>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+          <button type="button" onclick="window.DoctorApp.closeDelayModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5">
+            <i data-lucide="bell" class="w-4 h-4"></i> Broadcast Delay
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Doctor QR Scanner Modal -->
+  <div id="doctor-qr-scanner-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+            <i data-lucide="qr-code" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Scan Patient Slip QR Code</h3>
+            <p class="text-xs text-slate-400">Point camera at patient's printed/digital QR pass</p>
+          </div>
+        </div>
+        <button onclick="window.DoctorApp.closeDoctorQRScannerModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Live Camera Scanner Viewport -->
+      <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-teal-300 bg-slate-950 min-h-[260px] flex items-center justify-center">
+        <div id="doctor-qr-reader" class="w-full h-full"></div>
+      </div>
+
+      <!-- Manual Input Option -->
+      <div class="space-y-2 pt-2 border-t border-slate-100">
+        <label class="block text-xs font-bold text-slate-700">Or Verify by Token / Verification Code</label>
+        <div class="flex gap-2">
+          <input type="text" id="doctor-qr-manual-input" placeholder="e.g. CARD-001 or CP-VERIFY-..." class="flex-grow px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 uppercase">
+          <button onclick="window.DoctorApp.verifyManualDoctorToken()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-sm transition">
+            Verify
+          </button>
+        </div>
+      </div>
+
+      <!-- Result Container -->
+      <div id="doctor-qr-result-box" class="hidden"></div>
+    </div>
+  </div>
+
+  <!-- Direct Patient Call Modal -->
+  <div id="doctor-direct-call-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <i data-lucide="phone-call" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Direct Patient Call</h3>
+            <p class="text-xs text-slate-400">Call patient directly into consultation room</p>
+          </div>
+        </div>
+        <button onclick="window.DoctorApp.closeDirectCallModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Token Number</span>
+          <span id="direct-call-token" class="token-badge font-mono font-bold text-xs">APT-001</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Patient Name</span>
+          <span id="direct-call-patient" class="text-xs font-bold text-slate-800">John Doe</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400 font-semibold">Phone Contact</span>
+          <span id="direct-call-phone-text" class="text-xs font-semibold text-slate-700">Not provided</span>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <button id="direct-call-chime-btn" onclick="window.DoctorApp.triggerDirectCall()" class="w-full py-3.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs shadow-lg transition flex items-center justify-center gap-2">
+          <i data-lucide="bell-ring" class="w-4 h-4 animate-bounce"></i>
+          <span>Broadcast Room Alert & Audio Chime</span>
+        </button>
+
+        <a id="direct-call-phone-link" href="#" class="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2">
+          <i data-lucide="phone" class="w-4 h-4 text-sky-600"></i>
+          <span>Direct Voice Call (Phone Dialer)</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/pdf-receipt.js"></script>
+  <script src="../js/chat.js"></script>
+  <script src="../js/appointments.js"></script>
+  <script src="../js/doctor.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['doctor']);
+    });
+  </script>
+</body>
+</html>

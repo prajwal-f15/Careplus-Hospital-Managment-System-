@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Audit Logs - CarePulse Hospital Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appts</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Depts</a>
+          <a href="rooms.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="door-open" class="w-4 h-4"></i> Rooms</a>
+          <a href="verify-appointment.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="qr-code" class="w-4 h-4"></i> Verify</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+          <a href="audit-logs.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="shield" class="w-4 h-4"></i> Audit</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Hospital System Audit Trail</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Immutable audit log of staff actions, check-ins, consultations, and status modifications.</p>
+      </div>
+
+      <button onclick="loadAuditLogs()" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Log
+      </button>
+    </div>
+
+    <!-- Audit Logs Table -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3 px-4">Timestamp</th>
+              <th class="py-3 px-4">Action Event</th>
+              <th class="py-3 px-4">Triggered By</th>
+              <th class="py-3 px-4">Entity Type & ID</th>
+              <th class="py-3 px-4">Metadata Details</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body" class="divide-y divide-slate-100 font-medium">
+            <tr><td colspan="5" class="text-center py-8 text-slate-400">Loading audit trail...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    lucide.createIcons();
+
+    async function loadAuditLogs() {
+      const tableBody = document.getElementById('audit-table-body');
+      const logs = await window.CarePulseDB.getAuditLogs(50);
+
+      if (logs.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">No audit events recorded yet.</td></tr>`;
+        return;
+      }
+
+      tableBody.innerHTML = logs.map(l => {
+        const time = new Date(l.created_at).toLocaleString();
+        return `
+          <tr class="hover:bg-slate-50/75 transition">
+            <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${time}</td>
+            <td class="py-3 px-4">
+              <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-50 text-sky-700 border border-sky-200">
+                ${l.action}
+              </span>
+            </td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">${l.user_name}</div>
+              <div class="text-[10px] text-slate-400 capitalize">${l.user_role}</div>
+            </td>
+            <td class="py-3 px-4 text-slate-700">
+              <span class="font-bold uppercase text-[10px] text-slate-500">${l.entity_type}</span>
+              <div class="font-mono text-[11px] text-slate-600 truncate max-w-[120px]">${l.entity_id || '-'}</div>
+            </td>
+            <td class="py-3 px-4 text-slate-500 max-w-xs truncate font-mono text-[11px]">
+              ${l.details ? JSON.stringify(l.details) : '-'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAuditLogs();
+    });
+  </script>
+</body>
+</html>

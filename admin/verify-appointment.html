@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reception QR Scanner & Token Verifier - CarePulse Hospital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- HTML5-QRCode Live Camera Scanner Engine -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Reception Control</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appts</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Depts</a>
+          <a href="rooms.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="door-open" class="w-4 h-4"></i> Rooms</a>
+          <a href="verify-appointment.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="qr-code" class="w-4 h-4"></i> QR Scanner</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+          <a href="audit-logs.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="shield" class="w-4 h-4"></i> Audit</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-4xl mx-auto px-4 sm:px-6 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3">
+          <i data-lucide="qr-code" class="w-8 h-8 text-sky-600"></i>
+          Reception QR Scanner & Token Verifier
+        </h1>
+        <p class="text-xs text-slate-500 mt-1">Live camera optical scanning, file verification, and instant check-in against the Supabase hospital database.</p>
+      </div>
+
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 text-xs font-bold border border-sky-200 self-start sm:self-auto">
+        <i data-lucide="shield-check" class="w-4 h-4 text-sky-600"></i> Reception Desk Guard
+      </span>
+    </div>
+
+    <!-- Scanner Mode Selector Tabs -->
+    <div class="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
+      <div class="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+        <button id="tab-camera-btn" onclick="switchScannerMode('camera')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-sky-600 text-white shadow-sm">
+          <i data-lucide="camera" class="w-4 h-4"></i> Live Camera Scanner
+        </button>
+        <button id="tab-file-btn" onclick="switchScannerMode('file')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200">
+          <i data-lucide="upload" class="w-4 h-4"></i> Upload QR Image
+        </button>
+        <button id="tab-manual-btn" onclick="switchScannerMode('manual')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200">
+          <i data-lucide="keyboard" class="w-4 h-4"></i> Manual Token Input
+        </button>
+      </div>
+
+      <!-- Mode 1: Live Camera Scanner -->
+      <div id="scanner-camera-panel" class="space-y-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="text-xs text-slate-500">
+            Hold the patient's digital QR pass in front of your camera.
+          </div>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <select id="camera-select" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="environment">Back / Main Camera</option>
+              <option value="user">Front / Selfie Camera</option>
+            </select>
+            <button id="start-scan-btn" onclick="toggleCameraScanner()" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 whitespace-nowrap">
+              <i data-lucide="video" class="w-4 h-4"></i> <span id="scan-btn-text">Start Camera Scanner</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Viewfinder Container -->
+        <div class="relative bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 min-h-[260px] flex items-center justify-center">
+          <div id="qr-reader" class="w-full max-w-md mx-auto"></div>
+          <div id="scanner-placeholder" class="text-center p-8 space-y-3">
+            <div class="w-16 h-16 rounded-2xl bg-slate-800 text-sky-400 mx-auto flex items-center justify-center">
+              <i data-lucide="camera" class="w-8 h-8"></i>
+            </div>
+            <div class="text-xs text-slate-400 font-semibold">Camera is idle. Click "Start Camera Scanner" to begin scanning.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode 2: File Upload Scanner -->
+      <div id="scanner-file-panel" class="hidden space-y-4">
+        <div class="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-3 bg-slate-50 hover:bg-slate-100/60 transition cursor-pointer" onclick="document.getElementById('qr-file-input').click()">
+          <input type="file" id="qr-file-input" accept="image/*" class="hidden" onchange="handleFileQR(event)">
+          <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 mx-auto flex items-center justify-center">
+            <i data-lucide="image" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-slate-800">Click to upload QR code image</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">Supports PNG, JPG, JPEG receipts and screenshots</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode 3: Manual Token Input -->
+      <div id="scanner-manual-panel" class="hidden space-y-4">
+        <form id="verify-form" onsubmit="handleManualVerification(event)" class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="verify-input" required placeholder="Enter Token (e.g. CARD-001) or Appointment Code..." class="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <button type="submit" class="px-6 py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> Verify Registry
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Verification Result Card -->
+    <div id="verify-result" class="hidden animate-in fade-in zoom-in-95 duration-200"></div>
+  </main>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    lucide.createIcons();
+    window.Auth.requireAuth(['admin']);
+
+    let html5QrScanner = null;
+    let isCameraActive = false;
+    let lastScannedPayload = null;
+
+    function playBeep() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.15;
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          audioCtx.close();
+        }, 120);
+      } catch (e) {}
+    }
+
+    function switchScannerMode(mode) {
+      document.getElementById('scanner-camera-panel').classList.toggle('hidden', mode !== 'camera');
+      document.getElementById('scanner-file-panel').classList.toggle('hidden', mode !== 'file');
+      document.getElementById('scanner-manual-panel').classList.toggle('hidden', mode !== 'manual');
+
+      const btnCam = document.getElementById('tab-camera-btn');
+      const btnFile = document.getElementById('tab-file-btn');
+      const btnManual = document.getElementById('tab-manual-btn');
+
+      btnCam.className = `px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${mode === 'camera' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`;
+      btnFile.className = `px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${mode === 'file' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`;
+      btnManual.className = `px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${mode === 'manual' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`;
+
+      if (mode !== 'camera' && isCameraActive) {
+        stopCameraScanner();
+      }
+    }
+
+    async function toggleCameraScanner() {
+      if (isCameraActive) {
+        await stopCameraScanner();
+      } else {
+        await startCameraScanner();
+      }
+    }
+
+    async function startCameraScanner() {
+      const qrReaderElem = document.getElementById('qr-reader');
+      const placeholder = document.getElementById('scanner-placeholder');
+      const btnText = document.getElementById('scan-btn-text');
+      const startBtn = document.getElementById('start-scan-btn');
+
+      if (!window.Html5Qrcode) {
+        alert('QR Scanner library is loading. Please try again in a few seconds.');
+        return;
+      }
+
+      try {
+        if (!html5QrScanner) {
+          html5QrScanner = new Html5Qrcode("qr-reader");
+        }
+
+        placeholder.classList.add('hidden');
+        const cameraMode = document.getElementById('camera-select').value || 'environment';
+
+        await html5QrScanner.start(
+          { facingMode: cameraMode },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 }
+          },
+          (decodedText) => {
+            if (decodedText !== lastScannedPayload) {
+              lastScannedPayload = decodedText;
+              playBeep();
+              processScannedIdentifier(decodedText);
+            }
+          },
+          (errorMessage) => {
+            // Frame parse error - ignore
+          }
+        );
+
+        isCameraActive = true;
+        btnText.innerText = 'Stop Camera';
+        startBtn.className = 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 whitespace-nowrap';
+      } catch (err) {
+        console.error('Camera Scanner Error:', err);
+        placeholder.classList.remove('hidden');
+        isCameraActive = false;
+        btnText.innerText = 'Start Camera Scanner';
+        startBtn.className = 'px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 whitespace-nowrap';
+        alert('Unable to access camera. Please ensure camera permissions are allowed, or switch to Upload QR Image or Manual Token Input.');
+      }
+    }
+
+    async function stopCameraScanner() {
+      if (html5QrScanner && isCameraActive) {
+        try {
+          await html5QrScanner.stop();
+        } catch (e) {}
+      }
+      isCameraActive = false;
+      document.getElementById('scanner-placeholder').classList.remove('hidden');
+      document.getElementById('scan-btn-text').innerText = 'Start Camera Scanner';
+      document.getElementById('start-scan-btn').className = 'px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 whitespace-nowrap';
+    }
+
+    async function handleFileQR(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      if (!window.Html5Qrcode) {
+        alert('Scanner engine is initializing.');
+        return;
+      }
+
+      const tempScanner = html5QrScanner || new Html5Qrcode("qr-reader");
+      try {
+        const decodedText = await tempScanner.scanFile(file, true);
+        playBeep();
+        processScannedIdentifier(decodedText);
+      } catch (err) {
+        alert('Could not detect a valid QR code in the uploaded image. Please try another image or manual input.');
+      }
+    }
+
+    function handleManualVerification(e) {
+      e.preventDefault();
+      const input = document.getElementById('verify-input').value.trim();
+      if (!input) return;
+      processScannedIdentifier(input);
+    }
+
+    async function processScannedIdentifier(identifier) {
+      const resultBox = document.getElementById('verify-result');
+      resultBox.classList.remove('hidden');
+      resultBox.innerHTML = `
+        <div class="bg-white rounded-3xl p-8 border border-slate-200 text-center text-xs text-slate-400">
+          <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600"></i>
+          Verifying appointment against Supabase database registry...
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+
+      try {
+        const res = await window.CarePulseDB.verifyAppointmentQR(identifier);
+
+        if (!res.valid) {
+          resultBox.innerHTML = `
+            <div class="bg-rose-50 border border-rose-200 rounded-3xl p-6 sm:p-8 text-center space-y-3 text-rose-800">
+              <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+              </div>
+              <h3 class="text-base font-bold text-rose-900">Verification Failed</h3>
+              <p class="text-xs text-rose-700 max-w-md mx-auto">${res.message}</p>
+            </div>
+          `;
+        } else {
+          const a = res.appointment;
+          const isAlreadyCheckedIn = res.isAlreadyCheckedIn;
+
+          resultBox.innerHTML = `
+            <div class="bg-white rounded-3xl p-6 sm:p-8 border ${isAlreadyCheckedIn ? 'border-amber-300' : 'border-emerald-200'} shadow-md space-y-6">
+              
+              <!-- Verification Header Banner -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-2xl ${isAlreadyCheckedIn ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-600'} flex items-center justify-center font-bold">
+                    <i data-lucide="${isAlreadyCheckedIn ? 'shield-alert' : 'check-circle-2'}" class="w-7 h-7"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">
+                      ${isAlreadyCheckedIn ? 'Duplicate Check-In Prevented' : '✓ Appointment Verified in Registry'}
+                    </h3>
+                    <p class="text-xs ${isAlreadyCheckedIn ? 'text-amber-700 font-bold' : 'text-emerald-600 font-semibold'}">
+                      ${res.message}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span class="token-badge text-base px-4 py-1.5 shadow-xs font-black">${a.token_number}</span>
+                  <span class="status-badge ${a.status} uppercase">${a.status}</span>
+                </div>
+              </div>
+
+              <!-- Details Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div class="p-4 bg-slate-50 rounded-2xl space-y-2 border border-slate-100">
+                  <div class="text-[10px] uppercase font-bold text-slate-400">Patient Details</div>
+                  <div class="font-bold text-slate-900 text-sm">${a.patient_name}</div>
+                  <div class="text-slate-500">Contact: <span class="font-semibold text-slate-700">${a.patient_phone || a.patient_email || 'Not provided'}</span></div>
+                  <div class="text-slate-500">Reason: <span class="font-semibold text-slate-800">${a.reason || 'General Consultation'}</span></div>
+                  <div class="text-slate-500">Priority: <span class="font-bold uppercase text-slate-700">${a.priority || 'Normal'}</span></div>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-2xl space-y-2 border border-slate-100">
+                  <div class="text-[10px] uppercase font-bold text-slate-400">Doctor & Schedule</div>
+                  <div class="font-bold text-slate-900 text-sm">${a.doctor_name}</div>
+                  <div class="text-sky-700 font-semibold">${a.department_name} • ${a.room_number || 'OPD Room 101'}</div>
+                  <div class="text-slate-500">Scheduled: <span class="font-bold text-slate-800">${a.appointment_date} at ${window.CarePulseDB.formatTime12Hour(a.time_slot || a.appointment_time)}</span></div>
+                  <div class="text-slate-500">Security Hash: <span class="font-mono text-[10px] text-slate-400 font-semibold">${a.verification_hash || window.CarePulseDB.generateVerificationHash(a)}</span></div>
+                </div>
+              </div>
+
+              <!-- Action Bar -->
+              <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="text-xs text-slate-500">
+                  Appointment Number: <span class="font-bold text-slate-800">#${a.appointment_number || a.id.slice(0, 8)}</span>
+                </div>
+
+                ${!isAlreadyCheckedIn ? `
+                  <button onclick="confirmCheckIn('${a.id}')" class="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                    <i data-lucide="user-check" class="w-4 h-4"></i> Confirm Patient Check-In
+                  </button>
+                ` : `
+                  <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200">
+                    <i data-lucide="check" class="w-4 h-4 text-amber-600"></i> Already Checked-In
+                  </div>
+                `}
+              </div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        resultBox.innerHTML = `
+          <div class="bg-rose-50 border border-rose-200 rounded-3xl p-6 text-center text-xs text-rose-700">
+            Error verifying pass: ${err.message}
+          </div>
+        `;
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    async function confirmCheckIn(appointmentId) {
+      try {
+        await window.CarePulseDB.checkInAppointment(appointmentId);
+        alert('✓ Patient successfully checked in! Queue status updated to Waiting.');
+        // Re-verify to display updated check-in state
+        processScannedIdentifier(appointmentId);
+      } catch (err) {
+        alert('Check-in error: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
