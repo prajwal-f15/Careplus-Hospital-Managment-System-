@@ -186,6 +186,13 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadLeaves();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['doctor_leaves', 'doctors'],
+          intervalMs: 12000,
+          onRefresh: loadLeaves
+        });
+      }
     });
   </script>
 </body>

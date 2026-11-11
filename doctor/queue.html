@@ -809,10 +809,24 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadQueue();
-      // Listen to live database events
-      window.CarePulseDB.subscribeToAppointments(() => {
-        loadQueue();
-      });
+      const user = window.Auth?.getCurrentUser?.();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['appointments', 'doctors', 'doctor_leaves', 'waiting_list', 'notifications'],
+          userId: user?.id || null,
+          intervalMs: 8000,
+          onRefresh: loadQueue,
+          onNotificationEvent: (notif) => {
+            if (window.showToast && notif?.new) {
+              window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+            }
+          }
+        });
+      } else {
+        window.CarePulseDB.subscribeToAppointments(() => {
+          loadQueue();
+        });
+      }
     });
   </script>
 </body>

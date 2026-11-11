@@ -40,28 +40,48 @@ window.DoctorApp = {
     // Auto-render mobile bottom bar on smartphones & tablets
     this.renderMobileBottomNav();
 
-    // Realtime Database listeners & Supabase WebSockets
+    // Unified Realtime Database listeners, Supabase WebSockets & Smart Auto-Refresh
     const refreshDoctorViews = async () => {
+      try {
+        const docs = await window.CarePulseDB.getDoctors();
+        const freshDoc = docs.find(d => d.profile_id === this.currentUser.id || d.id === this.currentUser.doctor_id);
+        if (freshDoc) this.doctorRecord = freshDoc;
+      } catch (e) {}
       if (document.getElementById('doctor-dashboard-view')) await this.initDashboard();
       if (document.getElementById('doctor-appointments-view')) await this.initAppointmentsManager();
       if (document.getElementById('doctor-reviews-view')) await this.initReviews();
       if (document.getElementById('doctor-patients-view')) await this.initPatientsList();
     };
 
-    window.addEventListener('carepulse_db_change', refreshDoctorViews);
-
-    // Live Supabase Realtime Channels
-    window.CarePulseDB.subscribeToAppointments(() => {
-      refreshDoctorViews();
-    });
-
-    if (this.currentUser?.id) {
-      window.CarePulseDB.subscribeToNotifications(this.currentUser.id, (notif) => {
-        if (window.showToast && notif.new) {
-          window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+    if (window.CarePulseDB?.enableAutoRealtimeSync) {
+      this._realtimeSync = window.CarePulseDB.enableAutoRealtimeSync({
+        tables: [
+          'appointments', 'doctors', 'doctor_availability',
+          'doctor_leaves', 'waiting_list', 'notifications', 'reviews'
+        ],
+        userId: this.currentUser?.id || null,
+        intervalMs: 12000,
+        onRefresh: refreshDoctorViews,
+        onNotificationEvent: (notif) => {
+          if (window.showToast && notif?.new) {
+            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+          }
         }
+      });
+    } else {
+      window.addEventListener('carepulse_db_change', refreshDoctorViews);
+      window.CarePulseDB.subscribeToAppointments(() => {
         refreshDoctorViews();
       });
+
+      if (this.currentUser?.id) {
+        window.CarePulseDB.subscribeToNotifications(this.currentUser.id, (notif) => {
+          if (window.showToast && notif.new) {
+            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+          }
+          refreshDoctorViews();
+        });
+      }
     }
   },
 
@@ -412,7 +432,7 @@ window.DoctorApp = {
     if (!container) return;
 
     const appointments = await window.CarePulseDB.getAppointments();
-    const myAppointments = appointments.filter(a => a.doctor_id === this.doctorRecord.id);
+    this._myAppointments = appointments.filter(a => a.doctor_id === this.doctorRecord.id);
 
     const dateFilter = document.getElementById('filter-appt-date');
     const statusFilter = document.getElementById('filter-appt-status');
@@ -420,6 +440,7 @@ window.DoctorApp = {
     const render = () => {
       const selectedDate = dateFilter?.value;
       const selectedStatus = statusFilter?.value || 'all';
+      const myAppointments = this._myAppointments || [];
 
       const filtered = myAppointments.filter(a => {
         const matchesDate = !selectedDate || a.appointment_date === selectedDate;
@@ -496,9 +517,10 @@ window.DoctorApp = {
       if (window.lucide) window.lucide.createIcons();
     };
 
+    this._renderDoctorApptsFn = render;
     render();
-    dateFilter?.addEventListener('change', render);
-    statusFilter?.addEventListener('change', render);
+    if (dateFilter) dateFilter.onchange = () => this._renderDoctorApptsFn?.();
+    if (statusFilter) statusFilter.onchange = () => this._renderDoctorApptsFn?.();
   },
 
   async handleRequest(appointmentId, status) {

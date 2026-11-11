@@ -35,28 +35,96 @@ window.PatientApp = {
     // Auto-render mobile bottom bar on smartphones & tablets
     this.renderMobileBottomNav();
 
-    // Listen to realtime database changes & Supabase WebSockets
+    // Listen to unified Supabase Realtime, cross-tab BroadcastChannel & smart auto-refresh polling
     const refreshViews = async () => {
       if (document.getElementById('patient-dashboard-view')) await this.initDashboard();
+      if (document.getElementById('booking-wizard-container') && typeof this._reloadWizardSlots === 'function') {
+        await this._reloadWizardSlots();
+      }
       if (document.getElementById('patient-appointments-list')) await this.initAppointmentsList();
-      if (document.getElementById('patient-queue-view')) await this.initQueueTracker();
+      if (document.getElementById('patient-queue-view')) {
+        const selectedQueueId = document.getElementById('queue-appointment-select')?.value;
+        if (selectedQueueId) await this.renderQueueDetails(selectedQueueId, true);
+        else await this.initQueueTracker();
+      }
       if (document.getElementById('patient-notifications-container')) await this.initNotifications();
     };
 
-    window.addEventListener('carepulse_db_change', refreshViews);
-
-    // Live Supabase Realtime Channels
-    window.CarePulseDB.subscribeToAppointments(() => {
-      refreshViews();
-    });
-
-    if (this.currentUser?.id) {
-      window.CarePulseDB.subscribeToNotifications(this.currentUser.id, (notif) => {
-        if (window.showToast && notif.new) {
-          window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+    if (window.CarePulseDB?.enableAutoRealtimeSync) {
+      this._realtimeSync = window.CarePulseDB.enableAutoRealtimeSync({
+        tables: [
+          'appointments', 'doctors', 'doctor_availability',
+          'doctor_leaves', 'waiting_list', 'notifications', 'reviews'
+        ],
+        userId: this.currentUser.id,
+        intervalMs: 12000,
+        onRefresh: refreshViews,
+        onAppointmentEvent: (payload) => {
+          const appt = payload?.new;
+          if (!appt || appt.patient_id !== this.currentUser.id) return;
+          if (appt.is_called === true || appt.queue_status === 'called') {
+            this.triggerCallChimeOnce(
+              `call_${appt.id}_${appt.called_at || 'called'}`,
+              appt.token_number,
+              appt.room_number
+            );
+          }
+        },
+        onNotificationEvent: (notif) => {
+          const rec = notif?.new;
+          if (!rec) return;
+          if (rec.type === 'queue' && /calling|called/i.test(rec.title || '')) {
+            this.triggerCallChimeOnce(`notif_${rec.id}`, '', '');
+          } else if (window.showToast) {
+            window.showToast(`${rec.title}: ${rec.message}`, 'info');
+          }
         }
-        refreshViews();
       });
+    } else {
+      window.addEventListener('carepulse_db_change', refreshViews);
+      window.CarePulseDB.subscribeToAppointments(() => { refreshViews(); });
+      if (this.currentUser?.id) {
+        window.CarePulseDB.subscribeToNotifications(this.currentUser.id, (notif) => {
+          if (window.showToast && notif.new) {
+            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+          }
+          refreshViews();
+        });
+      }
+    }
+  },
+
+  triggerCallChimeOnce(eventKey, tokenNumber = '', roomNumber = '') {
+    try {
+      this._chimedEventKeys = this._chimedEventKeys || new Set();
+      if (this._chimedEventKeys.has(eventKey)) return;
+
+      let stored = [];
+      try {
+        stored = JSON.parse(sessionStorage.getItem('carepulse_chimed_keys') || '[]');
+      } catch (e) {}
+      if (stored.includes(eventKey)) {
+        this._chimedEventKeys.add(eventKey);
+        return;
+      }
+
+      this._chimedEventKeys.add(eventKey);
+      stored.push(eventKey);
+      try {
+        sessionStorage.setItem('carepulse_chimed_keys', JSON.stringify(stored.slice(-30)));
+      } catch (e) {}
+    } catch (e) {}
+
+    if (typeof this.playHospitalChime === 'function') {
+      this.playHospitalChime();
+    } else if (typeof playHospitalChime === 'function') {
+      playHospitalChime();
+    }
+
+    if (window.showToast) {
+      const tokenLabel = tokenNumber ? `Token ${tokenNumber}` : 'Your Token';
+      const roomLabel = roomNumber ? ` to ${roomNumber}` : ' to Consultation Room';
+      window.showToast(`🔔 ${tokenLabel}: Doctor is calling you now! Please proceed${roomLabel}.`, 'success');
     }
   },
 
@@ -338,16 +406,29 @@ window.PatientApp = {
     };
 
     // Render Slots based on Selected Doctor & Date
-    const loadSlots = async () => {
+    const loadSlots = async (isSilent = false) => {
       const docId = this.bookingState.doctorId;
       const date = this.bookingState.date;
 
       if (!docId || !date || !slotsGrid) return;
 
-      slotsGrid.innerHTML = `<div class="col-span-full py-4 text-center text-xs text-slate-400">Loading available slots...</div>`;
-      if (slotsMessage) slotsMessage.innerText = '';
+      if (!isSilent) {
+        slotsGrid.innerHTML = `<div class="col-span-full py-4 text-center text-xs text-slate-400">Loading available slots...</div>`;
+        if (slotsMessage) slotsMessage.innerText = '';
+      }
 
       const slotData = await window.AppointmentEngine.getDoctorSlotsForDate(docId, date);
+
+      if (this.bookingState.time) {
+        const stillOpen = (slotData.slots || []).some(
+          s => s.timeValue === this.bookingState.time && s.isAvailable && !s.isPast
+        );
+        if (!stillOpen) {
+          this.bookingState.time = null;
+          const previewTime = document.getElementById('summary-selected-time');
+          if (previewTime) previewTime.innerText = '--';
+        }
+      }
 
       if (!slotData.available) {
         slotsGrid.innerHTML = `
@@ -426,7 +507,7 @@ window.PatientApp = {
           `;
         }
         return `
-          <div class="slot-btn" onclick="window.PatientApp.selectSlot('${s.timeValue}', this)">
+          <div class="slot-btn${this.bookingState.time === s.timeValue ? ' selected' : ''}" onclick="window.PatientApp.selectSlot('${s.timeValue}', this)">
             <span>${s.displayTime}</span>
             <span class="text-[10px] text-emerald-600 font-normal">✓ Available</span>
           </div>
@@ -437,6 +518,20 @@ window.PatientApp = {
         slotsMessage.innerText = `${slotData.availableSlotsCount} of ${slotData.totalSlots} slots available (${slotData.scheduleStartDisplay} – ${slotData.scheduleEndDisplay})`;
       }
     };
+
+    this._reloadWizardSlots = async () => {
+      if (this.bookingState.doctorId && this.bookingState.date) {
+        await loadSlots(true);
+        await this.updateDoctorSummaryCard(this.bookingState.doctorId);
+      }
+    };
+
+    window.addEventListener('pagehide', () => {
+      if (window._carepulseBookingClockTimer) {
+        clearInterval(window._carepulseBookingClockTimer);
+        window._carepulseBookingClockTimer = null;
+      }
+    }, { once: true });
 
     deptSelect?.addEventListener('change', (e) => {
       this.bookingState.departmentId = e.target.value;
@@ -1224,26 +1319,22 @@ window.PatientApp = {
     const targetId = appointmentId || myUpcoming[0].id;
     await this.renderQueueDetails(targetId);
 
-    // Setup Realtime Live Subscription & Reactive 4-second Polling for Instant Queue Updates
+    // Setup Reactive 5-second Visibility-Aware Countdown Polling (Realtime WebSocket runs via init())
     if (!this._queueSyncInterval) {
       this._queueSyncInterval = setInterval(async () => {
+        if (document.visibilityState !== 'visible' || window.CarePulseDB?.hasActiveModalOrInputFocus?.()) return;
         const currentSelectedId = document.getElementById('queue-appointment-select')?.value || targetId;
         if (currentSelectedId) {
           await this.renderQueueDetails(currentSelectedId, true);
         }
-      }, 4000);
+      }, 5000);
+      window.addEventListener('pagehide', () => {
+        if (this._queueSyncInterval) {
+          clearInterval(this._queueSyncInterval);
+          this._queueSyncInterval = null;
+        }
+      }, { once: true });
     }
-
-    try {
-      if (window.CarePulseDB?.subscribeToAppointments) {
-        window.CarePulseDB.subscribeToAppointments(async () => {
-          const currentSelectedId = document.getElementById('queue-appointment-select')?.value || targetId;
-          if (currentSelectedId) {
-            await this.renderQueueDetails(currentSelectedId, true);
-          }
-        });
-      }
-    } catch (e) {}
   },
 
   playHospitalChime() {
@@ -1290,10 +1381,11 @@ window.PatientApp = {
     // Trigger chime and notification if called for the first time
     if (isMyTurn && !this._hasChimedForAppointment) {
       this._hasChimedForAppointment = apt.id;
-      this.playHospitalChime();
-      if (window.showToast) {
-        window.showToast(`🔔 Your Token ${apt.token_number} is being called! Please proceed to ${apt.room_number || 'Room 101'}`, 'success');
-      }
+      this.triggerCallChimeOnce(
+        `call_${apt.id}_${apt.called_at || 'called'}`,
+        apt.token_number,
+        apt.room_number
+      );
     }
 
     const callerBannerHTML = isMyTurn ? `

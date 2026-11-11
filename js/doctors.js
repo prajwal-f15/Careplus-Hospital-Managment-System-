@@ -10,21 +10,34 @@ window.DoctorDirectory = {
   departments: [],
 
   async init() {
-    this.departments = await window.CarePulseDB.getDepartments();
-    this.doctors = await window.CarePulseDB.getDoctors();
-    
-    this.renderDepartmentFilter();
-    this.renderDoctorCards(this.doctors);
+    await this.refreshData();
     this.attachEvents();
+
+    if (window.CarePulseDB?.enableAutoRealtimeSync) {
+      this._realtimeSync = window.CarePulseDB.enableAutoRealtimeSync({
+        tables: ['doctors', 'departments', 'doctor_availability', 'doctor_leaves', 'appointments', 'reviews'],
+        intervalMs: 15000,
+        onRefresh: () => this.refreshData()
+      });
+    }
   },
 
-  renderDepartmentFilter() {
+  async refreshData() {
+    this.departments = await window.CarePulseDB.getDepartments();
+    this.doctors = await window.CarePulseDB.getDoctors();
+
+    const prevSelectedDept = document.querySelector('input[name="dept-filter"]:checked')?.value || 'all';
+    this.renderDepartmentFilter(prevSelectedDept);
+    this.applyFilters();
+  },
+
+  renderDepartmentFilter(selectedDept = 'all') {
     const filterContainer = document.getElementById('department-filter-options');
     if (!filterContainer) return;
 
     filterContainer.innerHTML = `
       <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition">
-        <input type="radio" name="dept-filter" value="all" checked class="text-sky-600 focus:ring-sky-500 rounded">
+        <input type="radio" name="dept-filter" value="all" ${selectedDept === 'all' ? 'checked' : ''} class="text-sky-600 focus:ring-sky-500 rounded">
         <span class="text-sm font-medium text-slate-700">All Departments</span>
         <span class="ml-auto text-xs text-slate-400">(${this.doctors.length})</span>
       </label>
@@ -32,7 +45,7 @@ window.DoctorDirectory = {
         const count = this.doctors.filter(doc => doc.department_id === d.id).length;
         return `
           <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition">
-            <input type="radio" name="dept-filter" value="${d.id}" class="text-sky-600 focus:ring-sky-500 rounded">
+            <input type="radio" name="dept-filter" value="${d.id}" ${selectedDept === d.id ? 'checked' : ''} class="text-sky-600 focus:ring-sky-500 rounded">
             <span class="text-sm font-medium text-slate-700">${d.name}</span>
             <span class="ml-auto text-xs text-slate-400">(${count})</span>
           </label>
@@ -141,30 +154,34 @@ window.DoctorDirectory = {
     if (window.lucide) window.lucide.createIcons();
   },
 
+  applyFilters() {
+    const searchInput = document.getElementById('doctor-search-input');
+    const experienceFilter = document.getElementById('experience-filter');
+    const query = (searchInput?.value || '').toLowerCase().trim();
+    const selectedDept = document.querySelector('input[name="dept-filter"]:checked')?.value || 'all';
+    const minExp = parseInt(experienceFilter?.value || '0', 10);
+
+    const filtered = (this.doctors || []).filter(doc => {
+      const matchesQuery = !query || 
+        doc.full_name.toLowerCase().includes(query) ||
+        doc.specialization.toLowerCase().includes(query) ||
+        (doc.department_name && doc.department_name.toLowerCase().includes(query));
+
+      const matchesDept = selectedDept === 'all' || doc.department_id === selectedDept;
+      const matchesExp = (doc.experience_years || 0) >= minExp;
+
+      return matchesQuery && matchesDept && matchesExp;
+    });
+
+    this.renderDoctorCards(filtered);
+  },
+
   attachEvents() {
     const searchInput = document.getElementById('doctor-search-input');
     const filterContainer = document.getElementById('department-filter-options');
     const experienceFilter = document.getElementById('experience-filter');
 
-    const handleFilter = () => {
-      const query = (searchInput?.value || '').toLowerCase().trim();
-      const selectedDept = document.querySelector('input[name="dept-filter"]:checked')?.value || 'all';
-      const minExp = parseInt(experienceFilter?.value || '0', 10);
-
-      const filtered = this.doctors.filter(doc => {
-        const matchesQuery = !query || 
-          doc.full_name.toLowerCase().includes(query) ||
-          doc.specialization.toLowerCase().includes(query) ||
-          (doc.department_name && doc.department_name.toLowerCase().includes(query));
-
-        const matchesDept = selectedDept === 'all' || doc.department_id === selectedDept;
-        const matchesExp = (doc.experience_years || 0) >= minExp;
-
-        return matchesQuery && matchesDept && matchesExp;
-      });
-
-      this.renderDoctorCards(filtered);
-    };
+    const handleFilter = () => this.applyFilters();
 
     searchInput?.addEventListener('input', handleFilter);
     filterContainer?.addEventListener('change', handleFilter);

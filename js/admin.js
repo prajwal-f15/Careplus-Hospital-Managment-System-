@@ -38,6 +38,36 @@ window.AdminApp = {
 
     // Auto-render admin mobile bottom navigation
     this.renderMobileBottomNav();
+
+    // Unified Realtime Database Listeners & Visibility-Aware Auto-Refresh
+    const refreshAdminViews = async () => {
+      if (document.getElementById('admin-dashboard-view')) await this.initDashboard();
+      if (document.getElementById('admin-doctors-table-body')) await this.initDoctorManager();
+      if (document.getElementById('admin-patients-table-body')) await this.initPatientManager();
+      if (document.getElementById('admin-appointments-table-body')) await this.initAppointmentManager();
+      if (document.getElementById('admin-departments-table-body')) await this.initDepartmentManager();
+      if (document.getElementById('admin-reports-view')) await this.initReports();
+    };
+
+    if (window.CarePulseDB?.enableAutoRealtimeSync) {
+      this._realtimeSync = window.CarePulseDB.enableAutoRealtimeSync({
+        tables: [
+          'appointments', 'doctors', 'doctor_availability', 'doctor_leaves',
+          'waiting_list', 'notifications', 'departments', 'opd_rooms',
+          'profiles', 'reviews', 'audit_logs'
+        ],
+        userId: user.id,
+        intervalMs: 12000,
+        onRefresh: refreshAdminViews,
+        onNotificationEvent: (notif) => {
+          if (window.showToast && notif?.new) {
+            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+          }
+        }
+      });
+    } else {
+      window.addEventListener('carepulse_db_change', refreshAdminViews);
+    }
   },
 
   // Render Admin Mobile Bottom Bar
@@ -252,14 +282,18 @@ window.AdminApp = {
       deptSelect.innerHTML = this.cachedDepartments.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join('');
     }
 
-    // Populate department filter in Search Bar
+    // Populate department filter in Search Bar while preserving active selection
     const deptFilter = document.getElementById('admin-doc-dept-filter');
     if (deptFilter) {
+      const prevDept = deptFilter.value || 'all';
       deptFilter.innerHTML = `<option value="all">All Departments</option>` +
         this.cachedDepartments.map(d => `<option value="${d.name}">${d.name}</option>`).join('');
+      if ([...deptFilter.options].some(o => o.value === prevDept)) {
+        deptFilter.value = prevDept;
+      }
     }
 
-    this.renderDoctorsTable(this.cachedDoctors);
+    this.filterDoctors();
   },
 
   renderDoctorsTable(doctors) {
@@ -467,7 +501,7 @@ window.AdminApp = {
       p.booking_count = appointments.filter(a => a.patient_id === p.id).length;
     });
 
-    this.renderPatientsTable(this.cachedPatients);
+    this.filterPatients();
   },
 
   renderPatientsTable(patients) {
@@ -621,11 +655,15 @@ window.AdminApp = {
     const profiles = await window.CarePulseDB.getProfiles();
     this.cachedPatients = profiles.filter(p => p.role === 'patient');
 
-    // Populate filter doctor select
+    // Populate filter doctor select while preserving active selection
     const doctorFilter = document.getElementById('admin-filter-doctor');
     if (doctorFilter) {
+      const prevDocFilter = doctorFilter.value || 'all';
       doctorFilter.innerHTML = `<option value="all">All Doctors</option>` + 
         this.cachedDoctors.map(d => `<option value="${d.id}">${d.full_name} (${d.department_name})</option>`).join('');
+      if ([...doctorFilter.options].some(o => o.value === prevDocFilter)) {
+        doctorFilter.value = prevDocFilter;
+      }
     }
 
     // Populate Modal Doctor and Patient dropdowns
@@ -642,7 +680,7 @@ window.AdminApp = {
       modalPat.innerHTML = this.cachedPatients.map(p => `<option value="${p.id}">${p.full_name} (${p.email})</option>`).join('');
     }
 
-    this.renderAppointmentsTable(this.cachedAppointments);
+    this.filterAppointments();
     const countAllEl = document.getElementById('count-all-appts');
     if (countAllEl) countAllEl.innerText = this.cachedAppointments.length;
 

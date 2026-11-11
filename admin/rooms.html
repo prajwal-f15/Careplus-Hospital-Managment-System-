@@ -225,6 +225,13 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadRooms();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['opd_rooms', 'departments'],
+          intervalMs: 12000,
+          onRefresh: loadRooms
+        });
+      }
     });
   </script>
 </body>

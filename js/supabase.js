@@ -110,6 +110,7 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) throw error;
+    this.emitSyncEvent('departments');
     return data;
   },
 
@@ -121,6 +122,7 @@ window.CarePulseDB = {
       .delete()
       .eq('id', departmentId);
     if (error) throw error;
+    this.emitSyncEvent('departments');
     return true;
   },
 
@@ -143,6 +145,7 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) throw error;
+    this.emitSyncEvent('departments');
     return data;
   },
 
@@ -359,6 +362,8 @@ window.CarePulseDB = {
     }));
     await sb.from('doctor_availability').insert(schedules);
 
+    this.emitSyncEvent('doctors');
+    this.emitSyncEvent('doctor_availability');
     return newDoc;
   },
 
@@ -456,7 +461,7 @@ window.CarePulseDB = {
         }
       }
 
-      window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+      this.emitSyncEvent('doctors');
       return {
         ...(updatedDoctor || {}),
         ...(updatedProfile ? {
@@ -480,6 +485,7 @@ window.CarePulseDB = {
       .delete()
       .eq('id', doctorId);
     if (error) throw error;
+    this.emitSyncEvent('doctors');
     return true;
   },
 
@@ -582,9 +588,11 @@ window.CarePulseDB = {
           console.warn('doctor_availability insert error:', error.message);
           throw error;
         }
+        this.emitSyncEvent('doctor_availability');
         return data;
       }
 
+      this.emitSyncEvent('doctor_availability');
       return [];
     } catch (err) {
       console.error('saveDoctorAvailability error:', err);
@@ -1027,7 +1035,7 @@ window.CarePulseDB = {
       console.warn('Notification create note:', notifErr);
     }
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('appointments');
     return createdRecord;
   },
 
@@ -1140,7 +1148,7 @@ window.CarePulseDB = {
       }
     }
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('appointments');
     return data || updatePayload;
   },
 
@@ -1220,6 +1228,7 @@ window.CarePulseDB = {
       });
     }
 
+    this.emitSyncEvent('appointments');
     return data;
   },
 
@@ -1234,6 +1243,7 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) throw error;
+    this.emitSyncEvent('appointments');
     return data;
   },
 
@@ -1245,6 +1255,7 @@ window.CarePulseDB = {
       .delete()
       .eq('id', appointmentId);
     if (error) throw error;
+    this.emitSyncEvent('appointments');
     return true;
   },
 
@@ -1271,6 +1282,7 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) throw error;
+    this.emitSyncEvent('profiles');
     return data;
   },
 
@@ -1282,6 +1294,7 @@ window.CarePulseDB = {
       .delete()
       .eq('id', profileId);
     if (error) throw error;
+    this.emitSyncEvent('profiles');
     return true;
   },
 
@@ -1319,6 +1332,7 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) console.error('createNotification error:', error);
+    if (!error) this.emitSyncEvent('notifications');
     return data;
   },
 
@@ -1329,6 +1343,7 @@ window.CarePulseDB = {
       .from('notifications')
       .update({ is_read: true })
       .eq('id', id);
+    if (!error) this.emitSyncEvent('notifications');
     return !error;
   },
 
@@ -1339,6 +1354,7 @@ window.CarePulseDB = {
       .from('notifications')
       .update({ is_read: true })
       .eq('user_id', userId);
+    if (!error) this.emitSyncEvent('notifications');
     return !error;
   },
 
@@ -1384,6 +1400,8 @@ window.CarePulseDB = {
       .select()
       .single();
     if (error) throw error;
+    this.emitSyncEvent('reviews');
+    this.emitSyncEvent('doctors');
     return data;
   },
 
@@ -1448,8 +1466,10 @@ window.CarePulseDB = {
         .maybeSingle();
 
       if (coreErr) throw coreErr;
+      this.emitSyncEvent('profiles');
       return coreData;
     }
+    this.emitSyncEvent('profiles');
     return data;
   },
 
@@ -1511,6 +1531,7 @@ window.CarePulseDB = {
       details: { token: data?.token_number }
     });
 
+    this.emitSyncEvent('appointments');
     return data;
   },
 
@@ -1562,6 +1583,7 @@ window.CarePulseDB = {
       throw lastErr;
     }
 
+    this.emitSyncEvent('appointments');
     return data;
   },
 
@@ -1642,6 +1664,7 @@ window.CarePulseDB = {
       details: { doctor_id: doctorId, patient_id: patientId, prescription_count: prescriptions.length }
     });
 
+    this.emitSyncEvent('appointments');
     return appt;
   },
 
@@ -1693,6 +1716,7 @@ window.CarePulseDB = {
       });
     }
 
+    this.emitSyncEvent('appointments');
     return data;
   },
 
@@ -1732,6 +1756,7 @@ window.CarePulseDB = {
       .maybeSingle();
 
     if (error) throw error;
+    this.emitSyncEvent('doctor_leaves');
     return data;
   },
 
@@ -1745,6 +1770,7 @@ window.CarePulseDB = {
       .eq('id', leaveId);
 
     if (error) throw error;
+    this.emitSyncEvent('doctor_leaves');
     return true;
   },
 
@@ -1805,6 +1831,7 @@ window.CarePulseDB = {
       .maybeSingle();
 
     if (error) throw error;
+    this.emitSyncEvent('profiles');
     return data;
   },
 
@@ -1818,6 +1845,7 @@ window.CarePulseDB = {
       .eq('id', memberId);
 
     if (error) throw error;
+    this.emitSyncEvent('profiles');
     return true;
   },
 
@@ -1858,6 +1886,7 @@ window.CarePulseDB = {
       .maybeSingle();
 
     if (error) throw error;
+    this.emitSyncEvent('opd_rooms');
     return data;
   },
 
@@ -1873,6 +1902,7 @@ window.CarePulseDB = {
       .maybeSingle();
 
     if (error) throw error;
+    this.emitSyncEvent('opd_rooms');
     return data;
   },
 
@@ -1886,6 +1916,7 @@ window.CarePulseDB = {
       .eq('id', id);
 
     if (error) throw error;
+    this.emitSyncEvent('opd_rooms');
     return true;
   },
 
@@ -2052,6 +2083,7 @@ window.CarePulseDB = {
         entity_id: String(entity_id || ''),
         details
       }]);
+      this.emitSyncEvent('audit_logs');
     } catch (e) {
       console.debug('Audit log note:', e);
     }
@@ -2118,6 +2150,250 @@ window.CarePulseDB = {
       )
       .subscribe();
     return channel;
+  },
+
+  /**
+   * Broadcasts DB mutations within the active tab and across same-origin tabs.
+   */
+  emitSyncEvent(table = '*') {
+    const detail = { table, timestamp: Date.now() };
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('carepulse_db_change', { detail }));
+    }
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        if (!this._syncBroadcastChannel) {
+          this._syncBroadcastChannel = new BroadcastChannel('carepulse_realtime_sync');
+        }
+        this._syncBroadcastChannel.postMessage({ type: 'db_change', ...detail });
+      } catch (e) {}
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('carepulse_last_sync', JSON.stringify(detail));
+      } catch (e) {}
+    }
+  },
+
+  /**
+   * Returns true if a modal overlay/dialog is open or user focus is inside a text/form input,
+   * preventing auto-refresh from wiping unsaved notes, search text, or active dialogs.
+   */
+  hasActiveModalOrInputFocus() {
+    if (typeof document === 'undefined') return false;
+
+    if (document.querySelector('.modal-overlay.active, .modal.active, [role="dialog"]:not(.hidden)')) {
+      return true;
+    }
+
+    const idModals = document.querySelectorAll('[id$="-modal"]');
+    for (const m of idModals) {
+      if (!m.classList.contains('hidden') && m.style.display !== 'none') {
+        if (!m.classList.contains('modal-overlay') || m.classList.contains('active')) {
+          return true;
+        }
+      }
+    }
+
+    const activeNotes = document.getElementById('active-consultation-notes');
+    if (activeNotes && typeof activeNotes.value === 'string' && activeNotes.value.trim().length > 0) {
+      return true;
+    }
+
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.tagName) {
+      const tag = activeEl.tagName.toLowerCase();
+      if (tag === 'textarea' || activeEl.isContentEditable) return true;
+      if (tag === 'input') {
+        const inputType = (activeEl.type || 'text').toLowerCase();
+        if (['text', 'search', 'email', 'tel', 'password', 'number', 'url'].includes(inputType)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  },
+
+  /**
+   * Unified Realtime & Visibility-Aware Auto-Refresh Coordinator.
+   * Multiplexes Supabase Postgres Changes + BroadcastChannel + Smart Background Polling.
+   */
+  enableAutoRealtimeSync({
+    tables = [
+      'appointments', 'doctors', 'doctor_availability', 'doctor_leaves',
+      'waiting_list', 'notifications', 'reviews', 'departments',
+      'opd_rooms', 'profiles', 'audit_logs'
+    ],
+    userId = null,
+    onRefresh = null,
+    onAppointmentEvent = null,
+    onNotificationEvent = null,
+    intervalMs = 12000,
+    channelName = null
+  } = {}) {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return { destroy() {}, triggerRefresh() {} };
+    }
+
+    const uniqueTables = Array.from(new Set(tables));
+    const sb = getSupabaseClient();
+    let destroyed = false;
+    let inFlight = false;
+    let deferred = false;
+    let debounceTimer = null;
+    let pollTimer = null;
+    let sbChannel = null;
+    let bc = null;
+
+    const runRefresh = async (source = 'realtime') => {
+      if (destroyed || typeof onRefresh !== 'function') return;
+      if (document.visibilityState === 'hidden' || this.hasActiveModalOrInputFocus()) {
+        deferred = true;
+        return;
+      }
+      if (inFlight) {
+        deferred = true;
+        return;
+      }
+      inFlight = true;
+      deferred = false;
+      try {
+        await onRefresh(source);
+      } catch (err) {
+        console.warn('Auto-refresh sync warning:', err);
+      } finally {
+        inFlight = false;
+        if (deferred && !destroyed) {
+          deferred = false;
+          scheduleRefresh('queued', 250);
+        }
+      }
+    };
+
+    const scheduleRefresh = (source = 'realtime', delay = 250) => {
+      if (destroyed) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        runRefresh(source);
+      }, delay);
+    };
+
+    const tableMatches = (table) => !table || table === '*' || uniqueTables.includes(table);
+
+    if (sb) {
+      try {
+        const chName = channelName || ('carepulse_sync_' + Math.random().toString(36).slice(2));
+        sbChannel = sb.channel(chName);
+
+        uniqueTables.forEach((tbl) => {
+          const filterConfig = (tbl === 'notifications' && userId)
+            ? { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }
+            : { event: '*', schema: 'public', table: tbl };
+
+          sbChannel = sbChannel.on('postgres_changes', filterConfig, (payload) => {
+            if (tbl === 'appointments' && typeof onAppointmentEvent === 'function') {
+              try { onAppointmentEvent(payload); } catch (e) {}
+            }
+            if (tbl === 'notifications' && payload.eventType === 'INSERT' && typeof onNotificationEvent === 'function') {
+              try { onNotificationEvent(payload); } catch (e) {}
+            }
+            scheduleRefresh(`supabase:${tbl}`);
+          });
+        });
+
+        sbChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`⚡ CarePulse Unified Realtime Subscribed [${uniqueTables.join(', ')}]`);
+          }
+        });
+      } catch (e) {
+        console.warn('Supabase unified realtime setup note:', e);
+      }
+    }
+
+    const localDbHandler = (e) => {
+      const tbl = e?.detail?.table || '*';
+      if (tableMatches(tbl)) scheduleRefresh(`local:${tbl}`, 120);
+    };
+    window.addEventListener('carepulse_db_change', localDbHandler);
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('carepulse_realtime_sync');
+        bc.onmessage = (msg) => {
+          const tbl = msg?.data?.table || '*';
+          if (msg?.data?.type === 'db_change' && tableMatches(tbl)) {
+            scheduleRefresh(`broadcast:${tbl}`, 120);
+          }
+        };
+      } catch (e) {}
+    }
+
+    const storageHandler = (e) => {
+      if (e.key !== 'carepulse_last_sync' || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (tableMatches(parsed?.table)) scheduleRefresh(`storage:${parsed.table}`, 120);
+      } catch (err) {}
+    };
+    window.addEventListener('storage', storageHandler);
+
+    const visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleRefresh('visibility', 100);
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+
+    const onlineHandler = () => scheduleRefresh('online', 200);
+    window.addEventListener('online', onlineHandler);
+
+    const flushDeferredHandler = () => {
+      if (!deferred || destroyed) return;
+      setTimeout(() => {
+        if (deferred && !destroyed && document.visibilityState === 'visible' && !this.hasActiveModalOrInputFocus()) {
+          scheduleRefresh('deferred_flush', 100);
+        }
+      }, 150);
+    };
+    document.addEventListener('focusout', flushDeferredHandler);
+    document.addEventListener('click', flushDeferredHandler);
+
+    if (intervalMs && intervalMs > 0) {
+      pollTimer = setInterval(() => {
+        if (!destroyed && document.visibilityState === 'visible' && !this.hasActiveModalOrInputFocus()) {
+          runRefresh('poll');
+        }
+      }, intervalMs);
+    }
+
+    const destroy = () => {
+      if (destroyed) return;
+      destroyed = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (pollTimer) clearInterval(pollTimer);
+      window.removeEventListener('carepulse_db_change', localDbHandler);
+      window.removeEventListener('storage', storageHandler);
+      window.removeEventListener('online', onlineHandler);
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      document.removeEventListener('focusout', flushDeferredHandler);
+      document.removeEventListener('click', flushDeferredHandler);
+      if (bc) {
+        try { bc.close(); } catch (e) {}
+      }
+      if (sbChannel && sb) {
+        try { sb.removeChannel(sbChannel); } catch (e) {}
+      }
+    };
+
+    window.addEventListener('pagehide', destroy, { once: true });
+    window.addEventListener('beforeunload', destroy, { once: true });
+
+    return {
+      destroy,
+      triggerRefresh: (src = 'manual') => scheduleRefresh(src, 0)
+    };
   },
 
   // Local Date & Time Formatters (Timezone-safe)
@@ -2256,7 +2532,7 @@ window.CarePulseDB = {
       console.debug('Waiting list reallocation on reschedule note:', e);
     }
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('appointments');
     return data || { ...appt, ...updatePayload };
   },
 
@@ -2611,7 +2887,7 @@ window.CarePulseDB = {
       }
     }
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('doctors');
 
     return {
       doctorId,
@@ -2733,7 +3009,7 @@ window.CarePulseDB = {
       link: 'patient/appointments.html'
     });
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('waiting_list');
     return entry;
   },
 
@@ -2839,7 +3115,7 @@ window.CarePulseDB = {
       link: `patient/appointments.html?offer=${targetEntry.id}`
     });
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('waiting_list');
 
     return {
       reallocated: true,
@@ -2922,7 +3198,8 @@ window.CarePulseDB = {
       link: `patient/appointment-details.html?id=${newAppointment.id}`
     });
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('waiting_list');
+    this.emitSyncEvent('appointments');
     return newAppointment;
   },
 
@@ -2963,7 +3240,7 @@ window.CarePulseDB = {
       } catch (e) {}
     }
 
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+    this.emitSyncEvent('waiting_list');
   },
 
   async checkExpiredWaitingOffers() {
@@ -3009,8 +3286,10 @@ window.CarePulseDB = {
     }
 
     // Dispatch real-time DB change event & patient called event
-    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
-    window.dispatchEvent(new CustomEvent('carepulse_patient_called', { detail: { appointmentId, token: appt?.token_number } }));
+    this.emitSyncEvent('appointments');
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('carepulse_patient_called', { detail: { appointmentId, token: appt?.token_number } }));
+    }
 
     return appt;
   },
@@ -3069,8 +3348,11 @@ window.CarePulseDB = {
       }
     } catch (e) {}
 
-    // Dispatch local UI event
-    window.dispatchEvent(new CustomEvent('carepulse_new_chat_message', { detail: result }));
+    // Dispatch local UI event & cross-tab sync
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('carepulse_new_chat_message', { detail: result }));
+    }
+    this.emitSyncEvent('chat_messages');
 
     return result;
   },

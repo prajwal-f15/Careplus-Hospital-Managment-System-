@@ -124,6 +124,13 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadAuditLogs();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['audit_logs'],
+          intervalMs: 12000,
+          onRefresh: loadAuditLogs
+        });
+      }
     });
   </script>
 </body>

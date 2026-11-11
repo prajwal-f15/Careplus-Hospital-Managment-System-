@@ -560,20 +560,34 @@
       window.Auth.requireAuth(['patient']);
       loadAppointmentDetails();
 
-      window.addEventListener('carepulse_db_change', loadAppointmentDetails);
-      if (window.CarePulseDB?.subscribeToAppointments) {
-        window.CarePulseDB.subscribeToAppointments(() => {
-          loadAppointmentDetails();
-        });
-      }
       const user = window.Auth.getCurrentUser();
-      if (user?.id && window.CarePulseDB?.subscribeToNotifications) {
-        window.CarePulseDB.subscribeToNotifications(user.id, (notif) => {
-          if (window.showToast && notif?.new) {
-            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['appointments', 'doctors', 'notifications'],
+          userId: user?.id || null,
+          intervalMs: 12000,
+          onRefresh: loadAppointmentDetails,
+          onNotificationEvent: (notif) => {
+            if (window.showToast && notif?.new) {
+              window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+            }
           }
-          loadAppointmentDetails();
         });
+      } else {
+        window.addEventListener('carepulse_db_change', loadAppointmentDetails);
+        if (window.CarePulseDB?.subscribeToAppointments) {
+          window.CarePulseDB.subscribeToAppointments(() => {
+            loadAppointmentDetails();
+          });
+        }
+        if (user?.id && window.CarePulseDB?.subscribeToNotifications) {
+          window.CarePulseDB.subscribeToNotifications(user.id, (notif) => {
+            if (window.showToast && notif?.new) {
+              window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+            }
+            loadAppointmentDetails();
+          });
+        }
       }
     });
   </script>

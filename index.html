@@ -399,54 +399,65 @@
       const mobileMenu = document.getElementById('mobile-menu');
       menuBtn?.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
 
-      // Render home departments
-      const depts = await window.CarePulseDB.getDepartments();
-      const deptGrid = document.getElementById('home-departments-grid');
-      if (deptGrid) {
-        deptGrid.innerHTML = depts.slice(0, 4).map(d => `
-          <a href="doctors.html" class="bg-white p-6 rounded-3xl border border-slate-200 hover:border-sky-300 hover:shadow-lg transition group">
-            <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
-              <i data-lucide="${d.icon || 'activity'}" class="w-6 h-6"></i>
-            </div>
-            <h4 class="font-bold text-base text-slate-900">${d.name}</h4>
-            <p class="text-xs text-slate-400 mt-1 line-clamp-2">${d.description}</p>
-          </a>
-        `).join('');
-      }
+      const loadHomeSections = async () => {
+        // Render home departments
+        const depts = await window.CarePulseDB.getDepartments();
+        const deptGrid = document.getElementById('home-departments-grid');
+        if (deptGrid) {
+          deptGrid.innerHTML = depts.slice(0, 4).map(d => `
+            <a href="doctors.html" class="bg-white p-6 rounded-3xl border border-slate-200 hover:border-sky-300 hover:shadow-lg transition group">
+              <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                <i data-lucide="${d.icon || 'activity'}" class="w-6 h-6"></i>
+              </div>
+              <h4 class="font-bold text-base text-slate-900">${d.name}</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-2">${d.description}</p>
+            </a>
+          `).join('');
+        }
 
-      // Render home featured doctors
-      const doctors = await window.CarePulseDB.getDoctors();
-      const docGrid = document.getElementById('home-featured-doctors');
-      if (docGrid) {
-        docGrid.innerHTML = doctors.slice(0, 3).map(doc => `
-          <div class="bg-white rounded-3xl p-6 border border-slate-200 hover:shadow-xl transition flex flex-col justify-between">
-            <div class="flex items-start gap-4">
-              <img src="${doc.profile_image}" class="w-20 h-20 rounded-2xl object-cover border border-slate-100">
-              <div>
-                <span class="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full">${doc.department_name}</span>
-                <h4 class="font-bold text-base text-slate-900 mt-1.5"><a href="doctor-profile.html?id=${doc.id}">${doc.full_name}</a></h4>
-                <p class="text-xs text-slate-500">${doc.qualification}</p>
-                <div class="flex items-center gap-1 text-xs font-bold text-amber-500 mt-1">
-                  <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 stroke-amber-400"></i>
-                  ${doc.rating} (${doc.total_reviews} reviews)
+        // Render home featured doctors
+        const doctors = await window.CarePulseDB.getDoctors();
+        const docGrid = document.getElementById('home-featured-doctors');
+        if (docGrid) {
+          docGrid.innerHTML = doctors.slice(0, 3).map(doc => `
+            <div class="bg-white rounded-3xl p-6 border border-slate-200 hover:shadow-xl transition flex flex-col justify-between">
+              <div class="flex items-start gap-4">
+                <img src="${doc.profile_image}" class="w-20 h-20 rounded-2xl object-cover border border-slate-100">
+                <div>
+                  <span class="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full">${doc.department_name}</span>
+                  <h4 class="font-bold text-base text-slate-900 mt-1.5"><a href="doctor-profile.html?id=${doc.id}">${doc.full_name}</a></h4>
+                  <p class="text-xs text-slate-500">${doc.qualification}</p>
+                  <div class="flex items-center gap-1 text-xs font-bold text-amber-500 mt-1">
+                    <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 stroke-amber-400"></i>
+                    ${doc.rating} (${doc.total_reviews} reviews)
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-              <div>
-                <span class="text-[10px] text-slate-400 uppercase font-bold">Consultation</span>
-                <div class="text-sm font-extrabold text-slate-900">$${doc.consultation_fee}</div>
+              <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] text-slate-400 uppercase font-bold">Consultation</span>
+                  <div class="text-sm font-extrabold text-slate-900">$${doc.consultation_fee}</div>
+                </div>
+                <a href="patient/book-appointment.html?doctorId=${doc.id}" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition">
+                  Book Slot
+                </a>
               </div>
-              <a href="patient/book-appointment.html?doctorId=${doc.id}" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition">
-                Book Slot
-              </a>
             </div>
-          </div>
-        `).join('');
-      }
+          `).join('');
+        }
 
-      if (window.lucide) window.lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
+      };
+
+      await loadHomeSections();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['departments', 'doctors', 'reviews'],
+          intervalMs: 20000,
+          onRefresh: loadHomeSections
+        });
+      }
     });
   </script>
 </body>

@@ -58,141 +58,152 @@
       const urlParams = new URLSearchParams(window.location.search);
       const doctorId = urlParams.get('id');
 
-      const doctors = await window.CarePulseDB.getDoctors();
-      const doc = doctors.find(d => d.id === doctorId) || doctors[0];
+      const loadDoctorProfile = async () => {
+        const doctors = await window.CarePulseDB.getDoctors();
+        const doc = doctors.find(d => d.id === doctorId) || doctors[0];
 
-      if (!doc) {
+        if (!doc) {
+          document.getElementById('doctor-profile-content').innerHTML = `
+            <div class="bg-white p-12 rounded-3xl text-center">
+              <h3 class="font-bold text-slate-800">Doctor not found</h3>
+              <a href="doctors.html" class="text-sky-600 font-bold text-xs mt-2 inline-block">← Back to Doctors</a>
+            </div>
+          `;
+          return;
+        }
+
+        const schedules = await window.CarePulseDB.getDoctorAvailability(doc.id);
+        const reviews = await window.CarePulseDB.getReviews(doc.id);
+        const liveAvail = await window.CarePulseDB.calculateDoctorAvailability(doc.id);
+
         document.getElementById('doctor-profile-content').innerHTML = `
-          <div class="bg-white p-12 rounded-3xl text-center">
-            <h3 class="font-bold text-slate-800">Doctor not found</h3>
-            <a href="doctors.html" class="text-sky-600 font-bold text-xs mt-2 inline-block">← Back to Doctors</a>
+          <!-- Top Hero Card -->
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
+            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
+              <img src="${doc.profile_image}" class="w-32 h-32 rounded-3xl object-cover border-4 border-slate-100 shadow-md">
+              <div>
+                <div class="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                  <span class="text-xs font-bold px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-100">${doc.department_name}</span>
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${liveAvail.badgeClass}">
+                    <span class="w-2 h-2 rounded-full ${liveAvail.dotColor} animate-pulse"></span>
+                    ${liveAvail.status}
+                  </span>
+                  ${doc.is_verified ? `<span class="text-xs font-bold text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> Verified</span>` : ''}
+                </div>
+
+                <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-2">${doc.full_name}</h1>
+                <p class="text-sm text-slate-600 font-medium">${doc.specialization}</p>
+                <p class="text-xs text-slate-400 mt-0.5">${doc.qualification}</p>
+
+                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-xs text-slate-600">
+                  <span class="flex items-center gap-1.5"><i data-lucide="briefcase" class="w-4 h-4 text-sky-600"></i> ${doc.experience_years}+ Years Experience</span>
+                  <span class="flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4 text-sky-600"></i> ${doc.room_number || 'Wing A'}</span>
+                  <span class="flex items-center gap-1.5 text-amber-500 font-bold"><i data-lucide="star" class="w-4 h-4 fill-amber-400 stroke-amber-400"></i> ${doc.rating} (${doc.total_reviews} Reviews)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 text-center md:text-right w-full md:w-auto">
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Consultation Fee</span>
+              <div class="text-3xl font-black text-slate-900 my-1">$${doc.consultation_fee}</div>
+              <p class="text-[11px] text-slate-500 mb-4">Includes initial token & diagnosis</p>
+              <a href="patient/book-appointment.html?doctorId=${doc.id}" class="w-full block px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md transition text-center">
+                Book Consultation Now
+              </a>
+            </div>
+          </div>
+
+          <!-- Bio & Weekly Schedule Grid -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-8">
+              <!-- About Bio -->
+              <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 mb-3">About & Clinical Background</h3>
+                <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">${doc.about || 'Dedicated specialist providing comprehensive patient evaluation and individualized care.'}</p>
+              </div>
+
+              <!-- Patient Reviews Section -->
+              <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200">
+                <div class="flex items-center justify-between mb-6">
+                  <h3 class="text-base font-bold text-slate-900">Verified Patient Reviews</h3>
+                  <span class="text-xs font-bold text-slate-400">${reviews.length} Ratings Submitted</span>
+                </div>
+
+                ${reviews.length === 0 ? `
+                  <div class="text-center py-6 text-xs text-slate-400">No reviews published yet for this doctor.</div>
+                ` : `
+                  <div class="space-y-4">
+                    ${reviews.map(r => `
+                      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div class="flex items-center justify-between">
+                          <div class="font-bold text-xs text-slate-900">${r.patient_name}</div>
+                          <div class="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                            <span>${r.rating}</span>
+                            <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 stroke-amber-400"></i>
+                          </div>
+                        </div>
+                        <p class="text-xs text-slate-600 mt-2 italic">"${r.comment}"</p>
+                      </div>
+                    `).join('')}
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <!-- Weekly Schedule Card -->
+            <div>
+              <div class="bg-white rounded-3xl p-6 border border-slate-200 space-y-4 sticky top-28">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="calendar-clock" class="w-5 h-5 text-sky-600"></i> Weekly OPD Hours
+                  </h3>
+                </div>
+
+                <!-- Today's Live Status Card (Feature 3) -->
+                <div class="p-3.5 rounded-2xl border ${liveAvail.badgeClass} space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Today's Live Status</span>
+                    <span class="font-bold text-xs">${liveAvail.status}</span>
+                  </div>
+                  <p class="text-xs font-medium">${liveAvail.reason}</p>
+                  ${liveAvail.totalSlots > 0 ? `<div class="text-[11px] opacity-80 pt-1 border-t border-slate-200/50">${liveAvail.availableSlots} of ${liveAvail.totalSlots} slots currently available today</div>` : ''}
+                </div>
+                
+                <div class="space-y-2 text-xs">
+                  ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                    const s = schedules.find(sched => sched.day_of_week.toLowerCase() === day.toLowerCase() && sched.is_available);
+                    return `
+                      <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                        <span class="font-semibold text-slate-700">${day}</span>
+                        <span class="${s ? 'text-slate-900 font-medium' : 'text-slate-400 italic'}">
+                          ${s ? `${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)}` : 'Closed'}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+
+                <div class="pt-4 border-t border-slate-100">
+                  <a href="patient/book-appointment.html?doctorId=${doc.id}" class="w-full block py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold text-center transition">
+                    Select Time Slot →
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         `;
-        return;
+
+        if (window.lucide) window.lucide.createIcons();
+      };
+
+      await loadDoctorProfile();
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['doctors', 'doctor_availability', 'doctor_leaves', 'appointments', 'reviews'],
+          intervalMs: 15000,
+          onRefresh: loadDoctorProfile
+        });
       }
-
-      const schedules = await window.CarePulseDB.getDoctorAvailability(doc.id);
-      const reviews = await window.CarePulseDB.getReviews(doc.id);
-      const liveAvail = await window.CarePulseDB.calculateDoctorAvailability(doc.id);
-
-      document.getElementById('doctor-profile-content').innerHTML = `
-        <!-- Top Hero Card -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
-          <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
-            <img src="${doc.profile_image}" class="w-32 h-32 rounded-3xl object-cover border-4 border-slate-100 shadow-md">
-            <div>
-              <div class="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
-                <span class="text-xs font-bold px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-100">${doc.department_name}</span>
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${liveAvail.badgeClass}">
-                  <span class="w-2 h-2 rounded-full ${liveAvail.dotColor} animate-pulse"></span>
-                  ${liveAvail.status}
-                </span>
-                ${doc.is_verified ? `<span class="text-xs font-bold text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> Verified</span>` : ''}
-              </div>
-
-              <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-2">${doc.full_name}</h1>
-              <p class="text-sm text-slate-600 font-medium">${doc.specialization}</p>
-              <p class="text-xs text-slate-400 mt-0.5">${doc.qualification}</p>
-
-              <div class="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-xs text-slate-600">
-                <span class="flex items-center gap-1.5"><i data-lucide="briefcase" class="w-4 h-4 text-sky-600"></i> ${doc.experience_years}+ Years Experience</span>
-                <span class="flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4 text-sky-600"></i> ${doc.room_number || 'Wing A'}</span>
-                <span class="flex items-center gap-1.5 text-amber-500 font-bold"><i data-lucide="star" class="w-4 h-4 fill-amber-400 stroke-amber-400"></i> ${doc.rating} (${doc.total_reviews} Reviews)</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 text-center md:text-right w-full md:w-auto">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Consultation Fee</span>
-            <div class="text-3xl font-black text-slate-900 my-1">$${doc.consultation_fee}</div>
-            <p class="text-[11px] text-slate-500 mb-4">Includes initial token & diagnosis</p>
-            <a href="patient/book-appointment.html?doctorId=${doc.id}" class="w-full block px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md transition text-center">
-              Book Consultation Now
-            </a>
-          </div>
-        </div>
-
-        <!-- Bio & Weekly Schedule Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div class="lg:col-span-2 space-y-8">
-            <!-- About Bio -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200">
-              <h3 class="text-base font-bold text-slate-900 mb-3">About & Clinical Background</h3>
-              <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">${doc.about || 'Dedicated specialist providing comprehensive patient evaluation and individualized care.'}</p>
-            </div>
-
-            <!-- Patient Reviews Section -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200">
-              <div class="flex items-center justify-between mb-6">
-                <h3 class="text-base font-bold text-slate-900">Verified Patient Reviews</h3>
-                <span class="text-xs font-bold text-slate-400">${reviews.length} Ratings Submitted</span>
-              </div>
-
-              ${reviews.length === 0 ? `
-                <div class="text-center py-6 text-xs text-slate-400">No reviews published yet for this doctor.</div>
-              ` : `
-                <div class="space-y-4">
-                  ${reviews.map(r => `
-                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div class="flex items-center justify-between">
-                        <div class="font-bold text-xs text-slate-900">${r.patient_name}</div>
-                        <div class="flex items-center gap-1 text-amber-500 font-bold text-xs">
-                          <span>${r.rating}</span>
-                          <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 stroke-amber-400"></i>
-                        </div>
-                      </div>
-                      <p class="text-xs text-slate-600 mt-2 italic">"${r.comment}"</p>
-                    </div>
-                  `).join('')}
-                </div>
-              `}
-            </div>
-          </div>
-
-          <!-- Weekly Schedule Card -->
-          <div>
-            <div class="bg-white rounded-3xl p-6 border border-slate-200 space-y-4 sticky top-28">
-              <div class="flex items-center justify-between">
-                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <i data-lucide="calendar-clock" class="w-5 h-5 text-sky-600"></i> Weekly OPD Hours
-                </h3>
-              </div>
-
-              <!-- Today's Live Status Card (Feature 3) -->
-              <div class="p-3.5 rounded-2xl border ${liveAvail.badgeClass} space-y-1">
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Today's Live Status</span>
-                  <span class="font-bold text-xs">${liveAvail.status}</span>
-                </div>
-                <p class="text-xs font-medium">${liveAvail.reason}</p>
-                ${liveAvail.totalSlots > 0 ? `<div class="text-[11px] opacity-80 pt-1 border-t border-slate-200/50">${liveAvail.availableSlots} of ${liveAvail.totalSlots} slots currently available today</div>` : ''}
-              </div>
-              
-              <div class="space-y-2 text-xs">
-                ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                  const s = schedules.find(sched => sched.day_of_week.toLowerCase() === day.toLowerCase() && sched.is_available);
-                  return `
-                    <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                      <span class="font-semibold text-slate-700">${day}</span>
-                      <span class="${s ? 'text-slate-900 font-medium' : 'text-slate-400 italic'}">
-                        ${s ? `${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)}` : 'Closed'}
-                      </span>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-
-              <div class="pt-4 border-t border-slate-100">
-                <a href="patient/book-appointment.html?doctorId=${doc.id}" class="w-full block py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold text-center transition">
-                  Select Time Slot →
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-
-      if (window.lucide) window.lucide.createIcons();
     });
   </script>
 </body>
