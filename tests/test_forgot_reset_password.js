@@ -42,7 +42,7 @@ assert(fs.existsSync(edgePath), 'Edge Function index.ts exists at supabase/funct
 const edgeTs = fs.readFileSync(edgePath, 'utf8');
 
 assert(!authSrc.includes('resetPasswordForEmail'), 'js/auth.js no longer calls direct resetPasswordForEmail()');
-assert(authSrc.includes('supabase-functions-new-send-password-reset'), 'js/auth.js invokes supabase-functions-new-send-password-reset');
+assert(authSrc.includes('hyper-handler'), 'js/auth.js invokes deployed password reset Edge Function (hyper-handler)');
 assert(authSrc.includes('sb.auth.updateUser'), 'js/auth.js uses sb.auth.updateUser()');
 assert(!authSrc.includes('SENDLIB_API_KEY') && !forgotHtml.includes('SENDLIB_API_KEY'), 'SENDLIB_API_KEY never exposed in frontend code');
 assert(!authSrc.includes('SERVICE_ROLE') && !forgotHtml.includes('SERVICE_ROLE') && !resetHtml.includes('SERVICE_ROLE'), 'Service role key never exposed in frontend code');
@@ -273,9 +273,9 @@ async function runFrontendScenarioTests() {
   // Test frontend Edge Function invocation
   await Auth.forgotPassword('Patient@Hospital.com ');
   assert(
-    invokedArgs?.fnName === 'supabase-functions-new-send-password-reset' &&
+    invokedArgs?.fnName === 'hyper-handler' &&
     invokedArgs?.opts?.body?.email === 'patient@hospital.com',
-    'Frontend calls Edge Function supabase-functions-new-send-password-reset with normalized email'
+    'Frontend calls Edge Function hyper-handler with normalized email'
   );
 
   // Scenario 6 & 7: Unauthorized / expired / used recovery session rejected before updateUser
@@ -318,3 +318,4 @@ async function runFrontendScenarioTests() {
   console.log(`FORGOT/RESET PASSWORD CHECKS PASSED: ${passed}, FAILED: ${failed}`);
   console.log('======================================================================\n');
 })();
+

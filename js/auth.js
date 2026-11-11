@@ -548,9 +548,10 @@ window.Auth = {
     if (options.captchaToken) body.captchaToken = options.captchaToken;
     if (options.website) body.website = options.website;
 
+    const fnName = (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.passwordResetFunction) || 'hyper-handler';
     let result;
     try {
-      result = await sb.functions.invoke('supabase-functions-new-send-password-reset', {
+      result = await sb.functions.invoke(fnName, {
         body
       });
     } catch (networkErr) {
