@@ -146,7 +146,12 @@ async function runEdgeScenarioTests() {
   assert(res1.status === 200 && json1.success === true, 'Scenario 1: Registered email returns HTTP 200 success');
   assert(sendlibCalls.length === 1 && sendlibCalls[0].url === 'https://sendliberty.com/api/send', 'Scenario 1: Dispatched recovery link via Sendliberty REST API');
   assert(sendlibCalls[0].init.headers.Authorization === 'Bearer mock-sendlib-key', 'Scenario 1: Sent Bearer SENDLIB_API_KEY auth header');
-  assert(sendlibCalls[0].body.html.includes('https://vpimfibtizurhuhljcpb.supabase.co/auth/v1/verify'), 'Scenario 1: Email HTML embeds Supabase recovery action_link');
+  assert(sendlibCalls[0].body.html.includes('href="https://vpimfibtizurhuhljcpb.supabase.co/auth/v1/verify'), 'Scenario 1: Email button href embeds Supabase recovery action_link');
+  assert(
+    !sendlibCalls[0].body.html.includes('Or copy and paste this secure link') &&
+    !/token=tok_/.test(sendlibCalls[0].body.text),
+    'Scenario 1: Raw recovery link is hidden from visible email body and text preview'
+  );
 
   // Scenario 2: Unregistered email address (anti-enumeration)
   sendlibCalls = [];

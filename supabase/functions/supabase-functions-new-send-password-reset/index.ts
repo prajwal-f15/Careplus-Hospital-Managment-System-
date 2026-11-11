@@ -216,18 +216,6 @@ function buildRecoveryEmailHtml(actionLink: string): string {
                   </td>
                 </tr>
               </table>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fafc;border:1px solid #e4e4e7;border-radius:10px;margin:18px 0;">
-                <tr>
-                  <td style="padding:14px 16px;">
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:6px;">
-                      Or copy and paste this secure link:
-                    </div>
-                    <div style="font-size:12px;line-height:1.5;color:#0284c7;word-break:break-all;">
-                      ${safeUrl}
-                    </div>
-                  </td>
-                </tr>
-              </table>
               <p style="margin:0 0 10px;font-size:13px;color:#52525b;">
                 This link is single-use and expires automatically for your security.
               </p>
@@ -389,7 +377,7 @@ Deno.serve(async (req: Request) => {
       to: rawEmail,
       subject: 'Reset your CarePulse password',
       html: buildRecoveryEmailHtml(actionLink),
-      text: `Reset your CarePulse Hospital password using this single-use link:\n\n${actionLink}\n\nIf you did not request this, ignore this email.`,
+      text: 'We received a request to reset your CarePulse Hospital password. Please view this email in HTML mode and click the Reset Password button. If you did not request this, ignore this email.',
     };
 
     if (sendlibFromEmail) {
@@ -437,3 +425,4 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
