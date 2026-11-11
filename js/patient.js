@@ -270,9 +270,22 @@ window.PatientApp = {
     const slotsMessage = document.getElementById('wizard-slots-message');
     const bookingForm = document.getElementById('booking-confirm-form');
 
-    // Set min date to today
+    // Live Local Clock Display in Step 2
+    const updateLiveClock = () => {
+      const clockText = document.getElementById('wizard-live-clock-text');
+      if (!clockText) return;
+      const now = new Date();
+      const timeStr12 = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+      clockText.innerText = `Current Time: ${timeStr12}`;
+    };
+    updateLiveClock();
+    if (!window._carepulseBookingClockTimer) {
+      window._carepulseBookingClockTimer = setInterval(updateLiveClock, 15000);
+    }
+
+    // Set min date to local today (timezone-safe)
+    const todayStr = window.CarePulseDB.getLocalTodayDate();
     if (dateInput) {
-      const todayStr = new Date().toISOString().split('T')[0];
       dateInput.min = todayStr;
       dateInput.value = todayStr;
       this.bookingState.date = todayStr;
@@ -317,6 +330,13 @@ window.PatientApp = {
 
     populateDoctors();
 
+    // Helper: pick tomorrow local YYYY-MM-DD
+    const getTomorrowStr = () => {
+      const t = new Date();
+      t.setDate(t.getDate() + 1);
+      return window.CarePulseDB.getLocalTodayDate(t);
+    };
+
     // Render Slots based on Selected Doctor & Date
     const loadSlots = async () => {
       const docId = this.bookingState.doctorId;
@@ -340,8 +360,36 @@ window.PatientApp = {
         return;
       }
 
-      if (slotData.slots.length > 0 && slotData.availableSlotsCount === 0) {
-        // Feature 6: Priority Waiting List when fully booked
+      if (slotData.allRemainingPassed) {
+        const tomorrowStr = getTomorrowStr();
+        slotsGrid.innerHTML = `
+          <div class="col-span-full p-6 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 space-y-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="clock" class="w-5 h-5 text-sky-600"></i>
+              <span class="font-bold text-xs uppercase tracking-wide">Today's Clinic Hours Ended (Current Time: ${slotData.currentTimeDisplay})</span>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Today's OPD hours (${slotData.scheduleStartDisplay} – ${slotData.scheduleEndDisplay}) have already passed for <strong>${date}</strong>. Past time slots cannot be booked. Please pick tomorrow or an upcoming working day.
+            </p>
+            <button type="button" id="wizard-pick-tomorrow-btn" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition inline-flex items-center gap-2">
+              <i data-lucide="calendar-plus" class="w-4 h-4"></i> Switch to Tomorrow (${tomorrowStr}) →
+            </button>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        if (slotsMessage) slotsMessage.innerText = `0 of ${slotData.totalSlots} slots open today (OPD Hours: ${slotData.scheduleStartDisplay} – ${slotData.scheduleEndDisplay})`;
+        document.getElementById('wizard-pick-tomorrow-btn')?.addEventListener('click', () => {
+          if (dateInput) dateInput.value = tomorrowStr;
+          this.bookingState.date = tomorrowStr;
+          this.bookingState.time = null;
+          loadSlots();
+          this.updateDoctorSummaryCard(docId);
+        });
+        return;
+      }
+
+      if (slotData.isFullyBooked) {
+        // Feature 6: Priority Waiting List when upcoming slots are actually fully booked
         slotsGrid.innerHTML = `
           <div class="col-span-full p-6 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-3">
             <div class="flex items-center gap-2">
@@ -357,7 +405,7 @@ window.PatientApp = {
           </div>
         `;
         if (window.lucide) window.lucide.createIcons();
-        if (slotsMessage) slotsMessage.innerText = '0 of ' + slotData.totalSlots + ' slots available (Fully Booked)';
+        if (slotsMessage) slotsMessage.innerText = `0 of ${slotData.totalSlots} slots available (Fully Booked)`;
         return;
       }
 
@@ -366,6 +414,14 @@ window.PatientApp = {
           return `
             <div class="slot-btn booked" title="Already booked by another patient">
               <span>${s.displayTime}</span>
+            </div>
+          `;
+        }
+        if (s.isPast) {
+          return `
+            <div class="slot-btn opacity-45 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400" title="This time slot has already passed today (${slotData.currentTimeDisplay})">
+              <span>${s.displayTime}</span>
+              <span class="text-[10px] text-slate-400 font-normal">Time Passed</span>
             </div>
           `;
         }
@@ -378,7 +434,7 @@ window.PatientApp = {
       }).join('');
 
       if (slotsMessage) {
-        slotsMessage.innerText = `${slotData.availableSlotsCount} of ${slotData.totalSlots} slots available`;
+        slotsMessage.innerText = `${slotData.availableSlotsCount} of ${slotData.totalSlots} slots available (${slotData.scheduleStartDisplay} – ${slotData.scheduleEndDisplay})`;
       }
     };
 
@@ -401,6 +457,9 @@ window.PatientApp = {
       this.bookingState.date = e.target.value;
       this.bookingState.time = null;
       loadSlots();
+      if (this.bookingState.doctorId) {
+        this.updateDoctorSummaryCard(this.bookingState.doctorId);
+      }
     });
 
     if (preDoctorId) {
@@ -984,12 +1043,12 @@ window.PatientApp = {
     document.getElementById('reschedule-modal-current-time').innerText = `${apt.appointment_date} at ${window.CarePulseDB.formatTime12Hour(apt.time_slot || apt.appointment_time)}`;
 
     const dateInput = document.getElementById('reschedule-modal-date');
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = window.CarePulseDB.getLocalTodayDate();
     dateInput.min = todayStr;
 
     const maxDate = new Date();
     maxDate.setDate(maxDate.getDate() + 30);
-    dateInput.max = maxDate.toISOString().split('T')[0];
+    dateInput.max = window.CarePulseDB.getLocalTodayDate(maxDate);
     dateInput.value = '';
 
     document.getElementById('reschedule-modal-selected-slot').value = '';
@@ -1013,15 +1072,12 @@ window.PatientApp = {
         return;
       }
 
-      const now = new Date();
-      const isToday = dateStr === now.toISOString().split('T')[0];
-      const currentTimeStr = now.toTimeString().substring(0, 5);
+      if (slotData.allRemainingPassed) {
+        slotsContainer.innerHTML = `<div class="col-span-full py-4 text-center text-xs font-semibold text-slate-600">Today's clinic hours have ended (Current Time: ${slotData.currentTimeDisplay}). Please choose tomorrow or a future date.</div>`;
+        return;
+      }
 
-      const openSlots = slotData.slots.filter(s => {
-        if (s.isBooked) return false;
-        if (isToday && s.timeValue <= currentTimeStr) return false;
-        return true;
-      });
+      const openSlots = slotData.slots.filter(s => !s.isBooked && !s.isPast);
 
       if (openSlots.length === 0) {
         slotsContainer.innerHTML = '<div class="col-span-full py-4 text-center text-xs text-slate-500">All slots for this date are booked.</div>';

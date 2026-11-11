@@ -102,11 +102,11 @@ window.DoctorApp = {
   // 1. DOCTOR DASHBOARD & LIVE QUEUE CONTROLS
   // --------------------------------------------------------------------------
   async initDashboard() {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = window.CarePulseDB.getLocalTodayDate();
     const appointments = await window.CarePulseDB.getAppointments();
     
     // Appointments for this doctor
-    const myAppointments = appointments.filter(a => a.doctor_id === this.doctorRecord.id);
+    const myAppointments = appointments.filter(a => a.doctor_id === this.doctorRecord.id || a.doctor_id === this.currentUser?.id);
     const todayAppointments = myAppointments.filter(a => a.appointment_date === todayStr);
 
     const pendingRequests = myAppointments.filter(a => a.status === 'pending');
@@ -251,7 +251,7 @@ window.DoctorApp = {
               <span class="token-badge text-xs px-2.5 py-1 font-mono">${a.token_number}</span>
               <div>
                 <h5 class="text-xs font-bold text-slate-900">${a.patient_name}</h5>
-                <p class="text-[11px] text-slate-500">${a.appointment_time} &bull; ${a.reason}</p>
+                <p class="text-[11px] text-slate-500">${window.CarePulseDB.formatTime12Hour(a.time_slot || a.appointment_time)} &bull; ${a.reason}</p>
               </div>
             </div>
             <div class="flex items-center gap-1.5">
@@ -444,7 +444,7 @@ window.DoctorApp = {
           </td>
           <td class="py-3.5 px-4 text-xs text-slate-600">
             <div>${a.appointment_date}</div>
-            <div class="text-[11px] text-slate-400">${a.appointment_time}</div>
+            <div class="text-[11px] text-slate-400">${window.CarePulseDB.formatTime12Hour(a.time_slot || a.appointment_time)}</div>
           </td>
           <td class="py-3.5 px-4 text-xs text-slate-600 max-w-xs truncate" title="${a.reason}">
             ${a.reason}

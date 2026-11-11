@@ -18,6 +18,18 @@ window.AppointmentEngine = {
     const selectedDate = new Date(dateStr + 'T00:00:00');
     const dayName = this.DAYS[selectedDate.getDay()];
 
+    const now = new Date();
+    const todayStr = window.CarePulseDB?.getLocalTodayDate
+      ? window.CarePulseDB.getLocalTodayDate(now)
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const currentTimeStr = window.CarePulseDB?.getLocalCurrentTimeHHMM
+      ? window.CarePulseDB.getLocalCurrentTimeHHMM(now)
+      : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const currentTimeDisplay = window.CarePulseDB?.formatTime12Hour
+      ? window.CarePulseDB.formatTime12Hour(currentTimeStr)
+      : now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const isToday = dateStr === todayStr;
+
     // 0. Check Doctor Leaves
     try {
       const leaves = await window.CarePulseDB.getDoctorLeaves(doctorId);
@@ -26,7 +38,9 @@ window.AppointmentEngine = {
         return {
           available: false,
           message: 'Doctor is on approved leave on this date. Please choose another date.',
-          slots: []
+          slots: [],
+          currentTimeDisplay,
+          todayStr
         };
       }
     } catch (e) {}
@@ -39,7 +53,9 @@ window.AppointmentEngine = {
       return {
         available: false,
         message: `Doctor is not available on ${dayName}s.`,
-        slots: []
+        slots: [],
+        currentTimeDisplay,
+        todayStr
       };
     }
 
@@ -50,20 +66,23 @@ window.AppointmentEngine = {
     const [startHour, startMin] = daySchedule.start_time.split(':').map(Number);
     const [endHour, endMin] = daySchedule.end_time.split(':').map(Number);
 
-    let current = new Date();
+    let current = new Date(selectedDate);
     current.setHours(startHour, startMin, 0, 0);
 
-    const end = new Date();
+    const end = new Date(selectedDate);
     end.setHours(endHour, endMin, 0, 0);
 
     while (current < end) {
-      const timeStr = current.toTimeString().substring(0, 5); // "09:00"
-      const displayTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      const timeStr = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
+      const displayTime = window.CarePulseDB?.formatTime12Hour
+        ? window.CarePulseDB.formatTime12Hour(timeStr)
+        : current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
       
       generatedSlots.push({
         timeValue: timeStr,
         displayTime: displayTime,
         isBooked: false,
+        isPast: isToday && timeStr <= currentTimeStr,
         appointment: null
       });
 
@@ -88,15 +107,37 @@ window.AppointmentEngine = {
         slot.isBooked = true;
         slot.appointment = matched;
       }
+      slot.isAvailable = !slot.isBooked && !slot.isPast;
     });
+
+    const availableSlotsCount = generatedSlots.filter(s => s.isAvailable).length;
+    const upcomingTotalSlotsCount = generatedSlots.filter(s => !s.isPast).length;
+    const allRemainingPassed = isToday && generatedSlots.length > 0 && upcomingTotalSlotsCount === 0;
+    const isFullyBooked = upcomingTotalSlotsCount > 0 && availableSlotsCount === 0;
+
+    const scheduleStartDisplay = window.CarePulseDB?.formatTime12Hour
+      ? window.CarePulseDB.formatTime12Hour(daySchedule.start_time)
+      : daySchedule.start_time.substring(0, 5);
+    const scheduleEndDisplay = window.CarePulseDB?.formatTime12Hour
+      ? window.CarePulseDB.formatTime12Hour(daySchedule.end_time)
+      : daySchedule.end_time.substring(0, 5);
 
     return {
       available: true,
+      isToday,
+      todayStr,
+      currentTimeStr,
+      currentTimeDisplay,
+      scheduleStartDisplay,
+      scheduleEndDisplay,
       dayName,
       schedule: daySchedule,
       slots: generatedSlots,
       totalSlots: generatedSlots.length,
-      availableSlotsCount: generatedSlots.filter(s => !s.isBooked).length
+      upcomingTotalSlotsCount,
+      availableSlotsCount,
+      allRemainingPassed,
+      isFullyBooked
     };
   },
 

@@ -2120,13 +2120,28 @@ window.CarePulseDB = {
     return channel;
   },
 
-  // Utility Time Formatter
+  // Local Date & Time Formatters (Timezone-safe)
+  getLocalTodayDate(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  },
+
+  getLocalCurrentTimeHHMM(d = new Date()) {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  },
+
   formatTime12Hour(time24) {
     if (!time24) return '';
-    const [h, m] = time24.split(':').map(Number);
+    const str = String(time24).trim();
+    if (/am|pm/i.test(str)) return str.toUpperCase();
+    const parts = str.split(':').map(Number);
+    if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return str;
+    const [h, m] = parts;
     const period = h >= 12 ? 'PM' : 'AM';
     const displayH = h % 12 || 12;
-    return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
+    return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
   },
 
   // ============================================================================
@@ -2135,7 +2150,7 @@ window.CarePulseDB = {
   canRescheduleAppointment(appointment) {
     if (!appointment) return false;
     const isEligibleStatus = ['pending', 'confirmed'].includes(appointment.status);
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = this.getLocalTodayDate();
     const isFutureOrToday = appointment.appointment_date >= todayStr;
     return isEligibleStatus && isFutureOrToday;
   },
@@ -2250,11 +2265,12 @@ window.CarePulseDB = {
   // ============================================================================
   async calculateDoctorAvailability(doctorId, targetDateStr = null, targetTimeStr = null) {
     const today = new Date();
-    const dateStr = targetDateStr || today.toISOString().split('T')[0];
+    const localTodayStr = this.getLocalTodayDate(today);
+    const dateStr = targetDateStr || localTodayStr;
     const targetDate = new Date(dateStr + 'T00:00:00');
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayName = dayNames[targetDate.getDay()];
-    const isToday = dateStr === today.toISOString().split('T')[0];
+    const isToday = dateStr === localTodayStr;
 
     const doctor = await this.getDoctorById(doctorId);
     if (!doctor || !doctor.is_active || !doctor.is_verified) {
@@ -2332,7 +2348,7 @@ window.CarePulseDB = {
       !['cancelled', 'rejected'].includes(a.status)
     );
 
-    const currentTimeStr = targetTimeStr || today.toTimeString().substring(0, 5);
+    const currentTimeStr = targetTimeStr || this.getLocalCurrentTimeHHMM(today);
     const bookedTimeMap = new Set(dayBookings.map(b => (b.time_slot || b.appointment_time || '').substring(0, 5)));
 
     // Check if doctor currently has a patient in consultation room right now
@@ -2342,23 +2358,39 @@ window.CarePulseDB = {
       b.is_called === true
     ) : null;
 
-    // Remaining available slots
-    const availableSlots = allSlots.filter(s => {
-      if (bookedTimeMap.has(s.timeVal)) return false;
-      if (isToday && s.timeVal < currentTimeStr) return false;
-      return true;
-    });
+    // Separate passed slots vs future slots for today
+    const futureSlots = isToday ? allSlots.filter(s => s.timeVal > currentTimeStr) : allSlots;
+    const availableSlots = futureSlots.filter(s => !bookedTimeMap.has(s.timeVal));
 
-    if (allSlots.length > 0 && availableSlots.length === 0) {
+    const start12 = this.formatTime12Hour(daySchedule.start_time);
+    const end12 = this.formatTime12Hour(daySchedule.end_time);
+    const current12 = this.formatTime12Hour(currentTimeStr);
+
+    if (allSlots.length > 0 && isToday && futureSlots.length === 0) {
+      return {
+        status: 'Not Available',
+        allTodayPassed: true,
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+        badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Hours Ended Today</span>`,
+        message: `Today's OPD hours (${start12} – ${end12}) ended before ${current12}. Please select another date.`,
+        openSlotsCount: 0,
+        totalSlots: allSlots.length,
+        nextSlot: null,
+        scheduleWindow: `${start12} – ${end12}`
+      };
+    }
+
+    if (futureSlots.length > 0 && availableSlots.length === 0) {
       return {
         status: 'Fully Booked',
         badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
         badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Fully Booked</span>`,
-        message: 'All appointment slots are fully booked for this date.',
+        message: 'All remaining appointment slots are fully booked for this date.',
         openSlotsCount: 0,
         totalSlots: allSlots.length,
         nextSlot: null,
-        activeInRoomPatient: activeInRoomApt
+        activeInRoomPatient: activeInRoomApt,
+        scheduleWindow: `${start12} – ${end12}`
       };
     }
 
@@ -2371,7 +2403,8 @@ window.CarePulseDB = {
         openSlotsCount: availableSlots.length,
         totalSlots: allSlots.length,
         nextSlot: availableSlots[0]?.time12 || null,
-        activeInRoomPatient: activeInRoomApt
+        activeInRoomPatient: activeInRoomApt,
+        scheduleWindow: `${start12} – ${end12}`
       };
     }
 
@@ -2379,10 +2412,11 @@ window.CarePulseDB = {
       status: 'Available',
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       badgeHtml: `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Available</span>`,
-      message: `${availableSlots.length} slot(s) open for booking.`,
+      message: `${availableSlots.length} slot(s) open for booking (${start12} – ${end12}).`,
       openSlotsCount: availableSlots.length,
       totalSlots: allSlots.length,
-      nextSlot: availableSlots[0]?.time12 || null
+      nextSlot: availableSlots[0]?.time12 || null,
+      scheduleWindow: `${start12} – ${end12}`
     };
   },
 

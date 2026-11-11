@@ -640,7 +640,7 @@
 
       await renderDoctorDelayBanner();
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = window.CarePulseDB.getLocalTodayDate();
       const allAppointments = await window.CarePulseDB.getAppointments();
       
       const myTodayAppts = allAppointments.filter(a => 
@@ -743,7 +743,7 @@
     async function callNextPatient() {
       const user = window.Auth.getCurrentUser();
       const allAppointments = await window.CarePulseDB.getAppointments();
-      const today = new Date().toISOString().split('T')[0];
+      const today = window.CarePulseDB.getLocalTodayDate();
 
       const nextWaiting = allAppointments.find(a => 
         (a.doctor_id === currentDoctorRecord?.id || a.doctor_id === user.id) &&

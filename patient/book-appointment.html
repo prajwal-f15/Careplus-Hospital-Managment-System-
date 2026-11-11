@@ -101,12 +101,18 @@
 
       <!-- Step 3: Date & Live Slot Picker -->
       <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 class="text-sm font-bold uppercase tracking-wider text-sky-700 flex items-center gap-2">
             <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs">2</span>
             Select Date & Available Time Slot
           </h3>
-          <span id="wizard-slots-message" class="text-xs font-bold text-slate-500"></span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="wizard-live-clock" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-bold">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-sky-600"></i>
+              <span id="wizard-live-clock-text">--:--</span>
+            </span>
+            <span id="wizard-slots-message" class="text-xs font-bold text-slate-500"></span>
+          </div>
         </div>
 
         <div class="max-w-xs">
