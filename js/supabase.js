@@ -367,38 +367,105 @@ window.CarePulseDB = {
     if (!sb) throw new Error('Supabase client not connected');
 
     try {
-      // 1. Try updating by doctor.id
-      let { data, error } = await sb
-        .from('doctors')
-        .update(docData)
-        .eq('id', doctorId)
-        .select();
+      // Split fields across 'profiles' and 'doctors' tables to prevent schema mismatch (PGRST204)
+      const profileKeys = ['full_name', 'phone', 'profile_image', 'email', 'gender', 'address'];
+      const doctorKeys = [
+        'department_id', 'specialization', 'qualification', 'experience_years',
+        'hospital_name', 'room_number', 'consultation_fee', 'about', 'rating',
+        'total_reviews', 'is_verified', 'is_active', 'is_available_today',
+        'delay_minutes', 'delay_reason', 'delay_reported_at', 'live_opd_status'
+      ];
 
-      // 2. If no row updated, try updating by profile_id
-      if (!error && (!data || data.length === 0)) {
-        const { data: pData, error: pErr } = await sb
-          .from('doctors')
-          .update(docData)
-          .eq('profile_id', doctorId)
-          .select();
-        
-        if (!pErr && pData && pData.length > 0) {
-          data = pData;
-        } else {
-          // If doctor row doesn't exist yet, insert/upsert it
-          const { data: upsertData } = await sb
-            .from('doctors')
-            .upsert({
-              profile_id: doctorId,
-              ...docData
-            }, { onConflict: 'profile_id' })
-            .select();
-          data = upsertData;
+      const profileUpdates = {};
+      for (const k of profileKeys) {
+        if (docData[k] !== undefined) {
+          profileUpdates[k] = docData[k];
         }
       }
 
-      if (error) throw error;
-      return (data && data.length > 0) ? data[0] : docData;
+      const doctorUpdates = {};
+      for (const k of doctorKeys) {
+        if (docData[k] !== undefined) {
+          if (k === 'department_id' && docData[k] === '') continue;
+          doctorUpdates[k] = docData[k];
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // 1. Resolve existing doctor row (by doctor.id OR profile_id)
+      let existingDoc = null;
+      const { data: byId } = await sb
+        .from('doctors')
+        .select('*')
+        .eq('id', doctorId)
+        .maybeSingle();
+
+      if (byId) {
+        existingDoc = byId;
+      } else {
+        const { data: byProf } = await sb
+          .from('doctors')
+          .select('*')
+          .eq('profile_id', doctorId)
+          .maybeSingle();
+        if (byProf) existingDoc = byProf;
+      }
+
+      const targetDoctorId = existingDoc ? existingDoc.id : null;
+      const targetProfileId = existingDoc ? existingDoc.profile_id : doctorId;
+
+      // 2. Update linked 'profiles' row when profile fields are present
+      let updatedProfile = null;
+      if (Object.keys(profileUpdates).length > 0 && targetProfileId) {
+        profileUpdates.updated_at = nowIso;
+        const { data: pData, error: pErr } = await sb
+          .from('profiles')
+          .update(profileUpdates)
+          .eq('id', targetProfileId)
+          .select()
+          .maybeSingle();
+        if (pErr) throw pErr;
+        updatedProfile = pData;
+      }
+
+      // 3. Update or upsert 'doctors' row when doctor fields are present
+      let updatedDoctor = existingDoc;
+      if (Object.keys(doctorUpdates).length > 0) {
+        doctorUpdates.updated_at = nowIso;
+        if (targetDoctorId) {
+          const { data: dData, error: dErr } = await sb
+            .from('doctors')
+            .update(doctorUpdates)
+            .eq('id', targetDoctorId)
+            .select()
+            .maybeSingle();
+          if (dErr) throw dErr;
+          updatedDoctor = dData;
+        } else {
+          const { data: upsertData, error: uErr } = await sb
+            .from('doctors')
+            .upsert({
+              profile_id: targetProfileId,
+              ...doctorUpdates
+            }, { onConflict: 'profile_id' })
+            .select()
+            .maybeSingle();
+          if (uErr) throw uErr;
+          updatedDoctor = upsertData;
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent('carepulse_db_change'));
+      return {
+        ...(updatedDoctor || {}),
+        ...(updatedProfile ? {
+          full_name: updatedProfile.full_name,
+          phone: updatedProfile.phone,
+          email: updatedProfile.email,
+          profile_image: updatedProfile.profile_image
+        } : {})
+      };
     } catch (err) {
       console.error('updateDoctor error:', err);
       throw err;

@@ -908,12 +908,12 @@ window.DoctorApp = {
   // 6. PROFILE & BIO FORM
   // --------------------------------------------------------------------------
   async initProfileForm() {
-    const profile = await window.CarePulseDB.getProfileById(this.currentUser.id);
-    const doc = this.doctorRecord;
+    const profile = (await window.CarePulseDB.getProfileById(this.currentUser.id)) || this.currentUser || {};
+    const doc = this.doctorRecord || {};
 
     const setVal = (id, val) => {
       const el = document.getElementById(id);
-      if (el) el.value = val || '';
+      if (el) el.value = val ?? '';
     };
 
     setVal('doc-name', profile.full_name);
@@ -990,20 +990,31 @@ window.DoctorApp = {
     const form = document.getElementById('doctor-profile-form');
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Saving...';
+      }
+
       try {
+        const aboutEl = document.getElementById('doc-about');
         const updatedDoc = {
-          full_name: document.getElementById('doc-name')?.value.trim(),
-          phone: document.getElementById('doc-phone')?.value.trim(),
+          full_name: document.getElementById('doc-name')?.value.trim() || profile.full_name,
+          phone: document.getElementById('doc-phone')?.value.trim() || '',
           specialization: document.getElementById('doc-specialization')?.value.trim(),
           qualification: document.getElementById('doc-qualification')?.value.trim(),
           experience_years: Number(document.getElementById('doc-experience')?.value || 0),
           consultation_fee: Number(document.getElementById('doc-fee')?.value || 50),
           room_number: document.getElementById('doc-room')?.value.trim(),
-          about: document.getElementById('doc-about')?.value.trim(),
           profile_image: document.getElementById('profile-image')?.value.trim() || profile.profile_image
         };
+        if (aboutEl) {
+          updatedDoc.about = aboutEl.value.trim();
+        }
 
-        await window.CarePulseDB.updateDoctor(doc.id, updatedDoc);
+        const saved = await window.CarePulseDB.updateDoctor(doc.id || this.currentUser.id, updatedDoc);
+        this.doctorRecord = { ...doc, ...saved };
 
         // Sync session & update navbar
         const updatedSession = {
@@ -1011,7 +1022,8 @@ window.DoctorApp = {
           full_name: updatedDoc.full_name,
           phone: updatedDoc.phone,
           specialization: updatedDoc.specialization,
-          profile_image: updatedDoc.profile_image
+          profile_image: updatedDoc.profile_image,
+          doctor_id: saved?.id || this.currentUser.doctor_id
         };
         window.Auth.setCurrentUser(updatedSession);
         this.currentUser = updatedSession;
@@ -1020,6 +1032,11 @@ window.DoctorApp = {
         window.showToast('Doctor profile details updated!', 'success');
       } catch (err) {
         window.showToast(err.message || 'Error updating doctor profile', 'error');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnText;
+        }
       }
     });
   }
