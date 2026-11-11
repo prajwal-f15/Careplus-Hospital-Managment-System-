@@ -118,6 +118,7 @@ window.PatientApp = {
     if (nextCardContainer) {
       if (nextApt) {
         const queueInfo = await window.AppointmentEngine.getQueueStatus(nextApt.id);
+        const isConfirmedPass = !['pending', 'cancelled', 'rejected'].includes(nextApt.status);
         nextCardContainer.innerHTML = `
           <div class="bg-gradient-to-r from-sky-900 via-sky-800 to-teal-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
             <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -125,13 +126,20 @@ window.PatientApp = {
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
               <div>
                 <span class="text-xs font-bold uppercase tracking-wider text-sky-300">Upcoming Consultation</span>
-                <h3 class="text-2xl font-bold mt-1">${nextApt.appointment_date} at ${nextApt.appointment_time}</h3>
+                <h3 class="text-2xl font-bold mt-1">${nextApt.appointment_date} at ${window.CarePulseDB.formatTime12Hour(nextApt.time_slot || nextApt.appointment_time)}</h3>
               </div>
               <div class="flex items-center gap-3">
                 <span class="token-badge text-base px-4 py-1.5 shadow-lg">Token: ${nextApt.token_number}</span>
                 <span class="status-badge ${nextApt.status} text-xs uppercase">${nextApt.status}</span>
               </div>
             </div>
+
+            ${nextApt.status === 'pending' ? `
+              <div class="mt-4 p-3.5 rounded-2xl bg-amber-400/20 border border-amber-300/40 text-amber-100 text-xs flex items-center gap-2.5">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-300 flex-shrink-0"></i>
+                <span><strong>Pending Doctor Confirmation:</strong> Your booking request has been sent to ${nextApt.doctor_name}. Your A5 PDF Token Slip and Scannable QR Pass will unlock immediately once confirmed.</span>
+              </div>
+            ` : ''}
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
               <div class="flex items-center gap-4">
@@ -157,9 +165,18 @@ window.PatientApp = {
             </div>
 
             <div class="flex flex-wrap items-center justify-end gap-3 pt-2">
-              <button onclick="window.generateAppointmentReceiptPDF(window.PatientApp.currentNextApt)" class="px-4 py-2 text-xs font-bold bg-white/20 hover:bg-white/30 text-white rounded-xl transition flex items-center gap-1.5 border border-white/20" title="Download Token Slip with QR Code">
-                <i data-lucide="download" class="w-4 h-4"></i> Download Slip (QR)
-              </button>
+              ${isConfirmedPass ? `
+                <a href="appointment-details.html?id=${nextApt.id}" class="px-4 py-2 text-xs font-bold bg-white/20 hover:bg-white/30 text-white rounded-xl transition flex items-center gap-1.5 border border-white/20" title="View Digital QR Pass">
+                  <i data-lucide="qr-code" class="w-4 h-4"></i> View QR Pass
+                </a>
+                <button onclick="window.generateAppointmentReceiptPDF(window.PatientApp.currentNextApt)" class="px-4 py-2 text-xs font-bold bg-white hover:bg-sky-50 text-sky-900 rounded-xl transition flex items-center gap-1.5 shadow-md" title="Download Token Slip with QR Code">
+                  <i data-lucide="download" class="w-4 h-4"></i> Download Slip (QR)
+                </button>
+              ` : `
+                <span class="px-4 py-2 text-xs font-bold bg-amber-500/20 text-amber-200 rounded-xl border border-amber-300/30 flex items-center gap-1.5">
+                  <i data-lucide="lock" class="w-3.5 h-3.5"></i> Slip & QR Locked (Pending Approval)
+                </span>
+              `}
               <button onclick="window.PatientApp.openDoctorChat(window.PatientApp.currentNextApt.id, window.PatientApp.currentNextApt.doctor_name, window.PatientApp.currentNextApt.doctor_id, window.PatientApp.currentNextApt.token_number)" class="px-4 py-2 text-xs font-bold bg-white/20 hover:bg-white/30 text-white rounded-xl transition flex items-center gap-1.5 border border-white/20" title="Two-way Chat with Doctor">
                 <i data-lucide="message-square" class="w-4 h-4"></i> Chat with Doctor
               </button>
@@ -192,7 +209,9 @@ window.PatientApp = {
       if (myAppointments.length === 0) {
         recentTable.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-xs text-slate-400">No appointments found.</td></tr>`;
       } else {
-        recentTable.innerHTML = myAppointments.slice(0, 5).map(a => `
+        recentTable.innerHTML = myAppointments.slice(0, 5).map(a => {
+          const isSlipReady = !['pending', 'cancelled', 'rejected'].includes(a.status);
+          return `
           <tr class="border-b border-slate-100 hover:bg-slate-50/75 transition">
             <td class="py-3 px-4 font-bold text-sky-700 text-xs">${a.token_number}</td>
             <td class="py-3 px-4">
@@ -201,18 +220,23 @@ window.PatientApp = {
             </td>
             <td class="py-3 px-4 text-xs text-slate-600">
               <div>${a.appointment_date}</div>
-              <div class="text-[11px] text-slate-400">${a.appointment_time}</div>
+              <div class="text-[11px] text-slate-400">${window.CarePulseDB.formatTime12Hour(a.time_slot || a.appointment_time)}</div>
             </td>
             <td class="py-3 px-4">
               <span class="status-badge ${a.status}">${a.status}</span>
             </td>
             <td class="py-3 px-4 text-right">
-              <button onclick="window.generateAppointmentReceiptPDF(${JSON.stringify(a).replace(/"/g, '&quot;')})" class="p-1.5 text-slate-400 hover:text-sky-600 rounded-lg hover:bg-slate-100 transition" title="Download Slip">
-                <i data-lucide="download" class="w-4 h-4"></i>
-              </button>
+              ${isSlipReady ? `
+                <button onclick="window.generateAppointmentReceiptPDF(${JSON.stringify(a).replace(/"/g, '&quot;')})" class="px-2.5 py-1 text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition inline-flex items-center gap-1 text-[11px] font-bold" title="Download Slip with QR">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i> Slip (QR)
+                </button>
+              ` : `
+                <span class="text-[11px] font-semibold text-amber-600">${a.status === 'pending' ? '⏳ Awaiting Confirm' : 'N/A'}</span>
+              `}
             </td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       }
     }
 
@@ -410,7 +434,7 @@ window.PatientApp = {
       const submitBtn = document.getElementById('submit-booking-btn');
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerText = 'Confirming Booking...';
+        submitBtn.innerText = 'Submitting Request...';
       }
 
       const familyVal = document.getElementById('wizard-patient-type')?.value;
@@ -427,14 +451,15 @@ window.PatientApp = {
           symptoms: symptoms ? symptoms.trim() : ''
         });
 
-        // Show Success Modal with Token
+        // Show Booking Request Modal (Pending Doctor Confirmation)
         this.showBookingSuccessModal(appointment);
       } catch (err) {
         window.showToast(err.message || 'Failed to book appointment', 'error');
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerText = 'Confirm Appointment';
+          submitBtn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Submit Appointment Request';
+          if (window.lucide) window.lucide.createIcons();
         }
       }
     });
@@ -585,8 +610,15 @@ window.PatientApp = {
 
   showBookingSuccessModal(appointment) {
     const modal = document.getElementById('booking-success-modal');
+    const isPending = !appointment.status || appointment.status === 'pending';
+
     if (!modal) {
-      window.showToast(`Appointment booked successfully! Token: ${appointment.token_number}`, 'success');
+      window.showToast(
+        isPending
+          ? `Appointment request sent (Pending Doctor Confirmation)! Token: ${appointment.token_number}`
+          : `Appointment confirmed! Token: ${appointment.token_number}`,
+        'success'
+      );
       setTimeout(() => { window.location.href = 'appointments.html'; }, 1500);
       return;
     }
@@ -594,20 +626,49 @@ window.PatientApp = {
     const tokenDisplay = document.getElementById('success-token-display');
     const dateDisplay = document.getElementById('success-date-display');
     const timeDisplay = document.getElementById('success-time-display');
+    const iconBox = document.getElementById('success-modal-icon');
+    const statusPill = document.getElementById('success-status-pill');
+    const modalTitle = document.getElementById('success-modal-title');
+    const modalDesc = document.getElementById('success-modal-desc');
+    const pendingNote = document.getElementById('success-pending-qr-note');
+    const downloadBtn = document.getElementById('success-download-btn');
 
     if (tokenDisplay) tokenDisplay.innerText = appointment.token_number;
     if (dateDisplay) dateDisplay.innerText = appointment.appointment_date;
-    if (timeDisplay) timeDisplay.innerText = appointment.appointment_time;
+    if (timeDisplay) timeDisplay.innerText = window.CarePulseDB.formatTime12Hour(appointment.time_slot || appointment.appointment_time);
 
-    modal.classList.add('active');
-
-    const downloadBtn = document.getElementById('success-download-btn');
-    if (downloadBtn) {
-      downloadBtn.onclick = async () => {
-        const fullApt = await window.CarePulseDB.getAppointmentById(appointment.id);
-        window.generateAppointmentReceiptPDF(fullApt);
-      };
+    if (isPending) {
+      if (iconBox) {
+        iconBox.className = 'w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-md';
+        iconBox.innerHTML = '<i data-lucide="clock" class="w-8 h-8"></i>';
+      }
+      if (statusPill) statusPill.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 mb-2';
+      if (statusPill) statusPill.innerText = '⏳ Pending Doctor Confirmation';
+      if (modalTitle) modalTitle.innerText = 'Appointment Request Submitted!';
+      if (modalDesc) modalDesc.innerText = 'Your request has been sent to your doctor for confirmation. You will receive a web notification and your Slip + QR Pass will unlock once confirmed.';
+      if (pendingNote) pendingNote.classList.remove('hidden');
+      if (downloadBtn) downloadBtn.classList.add('hidden');
+    } else {
+      if (iconBox) {
+        iconBox.className = 'w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md';
+        iconBox.innerHTML = '<i data-lucide="check-circle" class="w-8 h-8"></i>';
+      }
+      if (statusPill) statusPill.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2';
+      if (statusPill) statusPill.innerText = '✓ Confirmed';
+      if (modalTitle) modalTitle.innerText = 'Appointment Confirmed!';
+      if (modalDesc) modalDesc.innerText = 'Your consultation is confirmed and your scannable QR Token Slip is ready to download.';
+      if (pendingNote) pendingNote.classList.add('hidden');
+      if (downloadBtn) {
+        downloadBtn.classList.remove('hidden');
+        downloadBtn.onclick = async () => {
+          const fullApt = await window.CarePulseDB.getAppointmentById(appointment.id);
+          window.generateAppointmentReceiptPDF(fullApt || appointment);
+        };
+      }
     }
+
+    if (window.lucide) window.lucide.createIcons();
+    modal.classList.add('active');
   },
 
   // --------------------------------------------------------------------------
@@ -650,16 +711,17 @@ window.PatientApp = {
 
       listContainer.innerHTML = filtered.map(apt => {
         const canReschedule = window.CarePulseDB.canRescheduleAppointment(apt);
-        const isUpcoming = ['pending', 'confirmed', 'checked_in'].includes(apt.status);
+        const isUpcoming = ['pending', 'confirmed', 'checked_in', 'checked-in', 'called', 'in-progress'].includes(apt.status);
+        const isConfirmedPass = !['pending', 'cancelled', 'rejected'].includes(apt.status);
 
         return `
           <div class="bg-white rounded-2xl p-6 border border-slate-200 hover:shadow-md transition flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="flex items-start gap-4">
               <img src="${apt.doctor_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200'}" class="w-16 h-16 rounded-2xl object-cover border border-slate-100 flex-shrink-0">
               <div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="token-badge text-xs px-2.5 py-0.5">Token: ${apt.token_number}</span>
-                  <span class="status-badge ${apt.status}">${apt.status}</span>
+                  <span class="status-badge ${apt.status}">${apt.status === 'pending' ? 'Pending Confirmation' : apt.status}</span>
                   ${apt.reschedule_count > 0 ? `
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">Rescheduled (${apt.reschedule_count}x)</span>
                   ` : ''}
@@ -679,10 +741,17 @@ window.PatientApp = {
                   </span>
                 </div>
 
+                ${apt.status === 'pending' ? `
+                  <div class="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-semibold text-amber-800 flex items-center gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0"></i>
+                    <span>Awaiting doctor confirmation. Your PDF Slip & Scannable QR Pass will unlock automatically once approved.</span>
+                  </div>
+                ` : ''}
+
                 <p class="text-xs text-slate-500 mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                   <strong>Reason:</strong> ${apt.reason}
                   ${apt.doctor_notes ? `<br><strong class="text-sky-700">Doctor Note:</strong> ${apt.doctor_notes}` : ''}
-                  ${apt.cancellation_reason ? `<br><strong class="text-rose-700">Cancel Reason:</strong> ${apt.cancellation_reason}` : ''}
+                  ${apt.cancellation_reason ? `<br><strong class="text-rose-700">Reason / Remarks:</strong> ${apt.cancellation_reason}` : ''}
                 </p>
               </div>
             </div>
@@ -692,14 +761,18 @@ window.PatientApp = {
                 <i data-lucide="file-text" class="w-3.5 h-3.5"></i> View Details
               </a>
 
-              <button onclick="window.generateAppointmentReceiptPDF(${JSON.stringify(apt).replace(/"/g, '&quot;')})" class="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition flex items-center gap-1.5 border border-slate-200">
-                <i data-lucide="printer" class="w-3.5 h-3.5"></i> Receipt Slip
-              </button>
+              ${isConfirmedPass ? `
+                <button onclick="window.generateAppointmentReceiptPDF(${JSON.stringify(apt).replace(/"/g, '&quot;')})" class="px-3 py-1.5 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-lg transition flex items-center gap-1.5 border border-teal-200">
+                  <i data-lucide="printer" class="w-3.5 h-3.5"></i> Download Slip (QR)
+                </button>
 
-              ${isUpcoming ? `
                 <button onclick="window.PatientApp.openQRPassModal('${apt.id}')" class="px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1">
                   <i data-lucide="qr-code" class="w-3.5 h-3.5 text-sky-600"></i> QR Pass
                 </button>
+              ` : apt.status === 'pending' ? `
+                <span class="px-3 py-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg border border-amber-200 flex items-center gap-1">
+                  <i data-lucide="lock" class="w-3 h-3"></i> Slip & QR Pending Approval
+                </span>
               ` : ''}
 
               ${canReschedule ? `
@@ -1469,7 +1542,9 @@ window.PatientApp = {
       return;
     }
 
-    container.innerHTML = notifications.map(n => `
+    container.innerHTML = notifications.map(n => {
+      const cleanLink = n.link ? n.link.replace(/^\/?patient\//, '') : '';
+      return `
       <div class="bg-white rounded-2xl p-5 border ${n.is_read ? 'border-slate-200' : 'border-sky-300 bg-sky-50/20'} flex items-start gap-4 transition">
         <div class="p-2.5 rounded-xl ${n.is_read ? 'bg-slate-100 text-slate-500' : 'bg-sky-100 text-sky-600'}">
           <i data-lucide="bell" class="w-5 h-5"></i>
@@ -1480,14 +1555,15 @@ window.PatientApp = {
             <span class="text-[11px] text-slate-400">${new Date(n.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
           </div>
           <p class="text-xs text-slate-600 mt-1">${n.message}</p>
-          ${n.link ? `
-            <a href="${n.link}" class="inline-flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 mt-2">
+          ${cleanLink ? `
+            <a href="${cleanLink}" class="inline-flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 mt-2">
               View Details <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
             </a>
           ` : ''}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     if (window.lucide) window.lucide.createIcons();
   },

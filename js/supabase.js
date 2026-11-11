@@ -745,10 +745,11 @@ window.CarePulseDB = {
     return this.bookAppointment(payload);
   },
 
-  async bookAppointment({ patient_id, doctor_id, department_id, appointment_date, time_slot, appointment_time, reason, symptoms, priority = 'normal' }) {
+  async bookAppointment({ patient_id, doctor_id, department_id, appointment_date, time_slot, appointment_time, reason, symptoms, priority = 'normal', status = 'pending' }) {
     const sb = getSupabaseClient();
     if (!sb) throw new Error('Supabase client not connected');
 
+    const initialStatus = status || 'pending';
     const cleanTime = (time_slot || appointment_time || '09:00').substring(0, 5);
 
     // Normalize and sanitize UUID helper (PostgreSQL requires hex 0-9, a-f)
@@ -889,8 +890,11 @@ window.CarePulseDB = {
     const token_number = `${deptCode}-${String(tokenSeq).padStart(3, '0')}`;
     const appointment_number = `APT-${Date.now().toString().slice(-6)}`;
     const fullReason = [reason, symptoms ? `(Symptoms: ${symptoms})` : ''].filter(Boolean).join(' ');
+    const randomHashToken = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? `CP-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
+      : `CP-${Math.random().toString(36).slice(2, 10).toUpperCase()}${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
-    // 4. Insert Appointment into Supabase
+    // 4. Insert Appointment into Supabase (defaults to 'pending' so Doctor can Confirm / Decline)
     let insertPayload = {
       appointment_number,
       token_number,
@@ -901,9 +905,10 @@ window.CarePulseDB = {
       time_slot: cleanTime,
       reason: fullReason,
       priority,
-      status: 'confirmed',
+      status: initialStatus,
       queue_status: 'waiting',
-      is_called: false
+      is_called: false,
+      verification_hash: randomHashToken
     };
 
     let appt = null;
@@ -944,16 +949,14 @@ window.CarePulseDB = {
 
       // Check if status constraint failed, retry with 'pending'
       if (errMsg.includes('appointments_status_check') || errMsg.includes('check constraint')) {
-        if (insertPayload.status === 'confirmed') {
-          insertPayload.status = 'pending';
-          continue;
-        }
+        insertPayload.status = 'pending';
+        continue;
       }
 
       // If other unexpected column error occurred, try fallback with minimal essential fields
       if (attempts === 3) {
         insertPayload = {
-          patient_id,
+          patient_id: targetPatientId || patient_id,
           doctor_id: targetDoctorId,
           appointment_date,
           token_number,
@@ -979,30 +982,43 @@ window.CarePulseDB = {
     const createdRecord = (appt && appt.length > 0) ? appt[0] : {
       appointment_number,
       token_number,
-      patient_id,
+      patient_id: targetPatientId || patient_id,
       doctor_id: targetDoctorId,
       appointment_date,
       time_slot: cleanTime,
       reason: fullReason,
-      status: 'confirmed'
+      status: initialStatus,
+      verification_hash: randomHashToken
     };
 
-    // 4. Create Realtime Notifications safely
+    // 5. Create Realtime Notifications safely
     try {
-      await this.createNotification({
-        user_id: patient_id,
-        title: 'Appointment Confirmed! 🏥',
-        message: `Your appointment is confirmed for ${appointment_date} at ${this.formatTime12Hour(cleanTime)}. Token Number: ${token_number}.`,
-        type: 'appointment',
-        link: 'appointments.html'
-      });
-
       const doc = await this.getDoctorById(targetDoctorId);
+      const notifyPatientId = createdRecord.patient_id || targetPatientId || patient_id;
+
+      if (createdRecord.status === 'confirmed') {
+        await this.createNotification({
+          user_id: notifyPatientId,
+          title: '✅ Appointment Confirmed! Slip & QR Ready',
+          message: `Your appointment is confirmed for ${appointment_date} at ${this.formatTime12Hour(cleanTime)}. Token Number: ${token_number}. Download your Slip with QR code now.`,
+          type: 'appointment',
+          link: createdRecord.id ? `appointment-details.html?id=${createdRecord.id}` : 'appointments.html'
+        });
+      } else {
+        await this.createNotification({
+          user_id: notifyPatientId,
+          title: '⏳ Appointment Request Sent (Pending Confirmation)',
+          message: `Your booking request with ${doc?.full_name || 'Specialist Doctor'} on ${appointment_date} at ${this.formatTime12Hour(cleanTime)} (Token: ${token_number}) is pending doctor confirmation. Your PDF Slip & QR Code will unlock once confirmed.`,
+          type: 'appointment',
+          link: 'appointments.html'
+        });
+      }
+
       if (doc && doc.profile_id) {
         await this.createNotification({
           user_id: doc.profile_id,
-          title: 'New Appointment Booked',
-          message: `A new patient has scheduled an appointment for ${appointment_date} at ${this.formatTime12Hour(cleanTime)}.`,
+          title: createdRecord.status === 'pending' ? '📋 New Appointment Request Pending Approval' : 'New Appointment Booked',
+          message: `Patient has booked ${appointment_date} at ${this.formatTime12Hour(cleanTime)} (Token: ${token_number}). ${createdRecord.status === 'pending' ? 'Please Confirm or Decline from your dashboard.' : ''}`,
           type: 'appointment',
           link: 'appointments.html'
         });
@@ -1011,6 +1027,7 @@ window.CarePulseDB = {
       console.warn('Notification create note:', notifErr);
     }
 
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
     return createdRecord;
   },
 
@@ -1024,6 +1041,22 @@ window.CarePulseDB = {
     };
     if (notes) updatePayload.doctor_notes = notes;
     if (rejectionReason) updatePayload.cancellation_reason = rejectionReason;
+
+    // Ensure a verification_hash exists when confirming so QR & PDF slip are immediately ready
+    if (status === 'confirmed') {
+      try {
+        const { data: existing } = await sb
+          .from('appointments')
+          .select('id, verification_hash')
+          .eq('id', appointmentId)
+          .maybeSingle();
+        if (existing && !existing.verification_hash) {
+          updatePayload.verification_hash = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? `CP-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
+            : `CP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+        }
+      } catch (e) {}
+    }
 
     // Synchronize queue fields
     if (status === 'in-progress' || status === 'in_consultation' || status === 'called') {
@@ -1072,12 +1105,28 @@ window.CarePulseDB = {
     // Send notification to patient
     if (data && data.patient_id) {
       try {
+        let notifTitle = `Appointment ${status.toUpperCase()}`;
+        let notifMsg = `Your appointment status was updated to: ${status}. ${notes ? `Doctor Note: ${notes}` : ''}`;
+        let notifLink = `appointment-details.html?id=${data.id}`;
+
+        if (status === 'confirmed') {
+          notifTitle = '✅ Appointment Confirmed! Slip & QR Ready';
+          notifMsg = `Great news! Your appointment (Token: ${data.token_number}) on ${data.appointment_date} at ${this.formatTime12Hour(data.time_slot || data.appointment_time)} is CONFIRMED by your doctor. Open details to download your PDF Slip with QR Code!`;
+        } else if (status === 'rejected') {
+          notifTitle = '❌ Appointment Request Declined';
+          notifMsg = `Your appointment request (Token: ${data.token_number}) for ${data.appointment_date} was declined by the doctor.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`;
+          notifLink = 'book-appointment.html';
+        } else if (status === 'completed') {
+          notifTitle = '🩺 Consultation Completed';
+          notifMsg = `Your consultation (Token: ${data.token_number}) is completed. View doctor notes, prescription & leave a review.`;
+        }
+
         await this.createNotification({
           user_id: data.patient_id,
-          title: `Appointment ${status.toUpperCase()}`,
-          message: `Your appointment status was updated to: ${status}. ${notes ? `Doctor Note: ${notes}` : ''}`,
+          title: notifTitle,
+          message: notifMsg,
           type: 'appointment',
-          link: 'appointments.html'
+          link: notifLink
         });
       } catch (e) {}
     }
@@ -1091,6 +1140,7 @@ window.CarePulseDB = {
       }
     }
 
+    window.dispatchEvent(new CustomEvent('carepulse_db_change'));
     return data || updatePayload;
   },
 
@@ -1872,12 +1922,14 @@ window.CarePulseDB = {
     const cleanInput = identifier.trim();
     let targetId = cleanInput;
     let targetToken = cleanInput;
+    let providedHash = '';
 
     // 1. Parse structured CAREPULSE:VERIFY payload: CAREPULSE:VERIFY:<id>:<token>:<hash>
     if (cleanInput.startsWith('CAREPULSE:VERIFY:')) {
       const parts = cleanInput.split(':');
       targetId = parts[2] || '';
       targetToken = parts[3] || '';
+      providedHash = parts[4] || '';
     } else if (cleanInput.startsWith('CAREPULSE|')) {
       // Legacy format: CAREPULSE|<id>|<token>|<date>
       const parts = cleanInput.split('|');
@@ -1891,6 +1943,7 @@ window.CarePulseDB = {
         if (parsed.appointment_id) targetId = parsed.appointment_id;
         if (parsed.token) targetToken = parsed.token;
         if (parsed.token_number) targetToken = parsed.token_number;
+        if (parsed.verification_hash) providedHash = parsed.verification_hash;
       } catch (e) {}
     }
 
@@ -1902,6 +1955,7 @@ window.CarePulseDB = {
     const matched = appointments.find(a => 
       (cleanId && a.id.toLowerCase() === cleanId) ||
       (cleanToken && a.token_number && a.token_number.toLowerCase() === cleanToken) ||
+      (a.verification_hash && a.verification_hash.toLowerCase() === cleanRaw) ||
       (a.appointment_number && a.appointment_number.toLowerCase() === cleanRaw) ||
       (a.token_number && a.token_number.toLowerCase() === cleanRaw) ||
       a.id.toLowerCase() === cleanRaw
@@ -1911,6 +1965,28 @@ window.CarePulseDB = {
       return { 
         valid: false, 
         message: 'No appointment found in hospital registry matching this QR code or Token.' 
+      };
+    }
+
+    // Verify hash signature when structured payload contains a hash
+    if (providedHash) {
+      const expectedHash = matched.verification_hash || this.generateVerificationHash(matched);
+      if (expectedHash && providedHash.trim().toUpperCase() !== expectedHash.trim().toUpperCase()) {
+        return {
+          valid: false,
+          errorType: 'invalid_hash',
+          message: 'Invalid or tampered QR security token. Verification rejected.'
+        };
+      }
+    }
+
+    // Block unconfirmed / pending bookings from QR check-in
+    if (matched.status === 'pending') {
+      return {
+        valid: false,
+        errorType: 'pending',
+        appointment: matched,
+        message: `Appointment (Token ${matched.token_number}) is still PENDING Doctor Confirmation. Doctor must confirm it first before check-in.`
       };
     }
 
@@ -2764,14 +2840,15 @@ window.CarePulseDB = {
       throw new Error('This slot offer has expired (30-minute window exceeded).');
     }
 
-    // Book the appointment
+    // Book the appointment as confirmed (released slot allocation)
     const newAppointment = await this.createAppointment({
       patient_id: entry.patient_id,
       doctor_id: entry.doctor_id,
       appointment_date: entry.preferred_date,
       time_slot: entry.offered_time_slot,
       reason: entry.reason || 'Priority Waiting List Allocation',
-      priority: 'normal'
+      priority: 'normal',
+      status: 'confirmed'
     });
 
     const sb = getSupabaseClient();

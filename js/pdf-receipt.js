@@ -5,7 +5,25 @@
  * ==============================================================================
  */
 
+function loadQRCodeLibraryIfNeeded() {
+  return new Promise((resolve) => {
+    if (window.QRCode) return resolve(true);
+    const existing = document.querySelector('script[src*="qrcode"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(!!window.QRCode));
+      setTimeout(() => resolve(!!window.QRCode), 1500);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    script.onload = () => resolve(!!window.QRCode);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
 async function ensureQRCodeDataURL(text) {
+  await loadQRCodeLibraryIfNeeded();
   return new Promise((resolve) => {
     if (window.QRCode) {
       const tempDiv = document.createElement('div');
@@ -33,7 +51,7 @@ async function ensureQRCodeDataURL(text) {
           }
           try { document.body.removeChild(tempDiv); } catch (e) {}
           resolve(dataUrl);
-        }, 120);
+        }, 140);
       } catch (e) {
         try { document.body.removeChild(tempDiv); } catch (e2) {}
         resolve(null);
@@ -45,6 +63,16 @@ async function ensureQRCodeDataURL(text) {
 }
 
 window.generateAppointmentReceiptPDF = async function(appointment) {
+  if (!appointment) return;
+
+  if (['pending', 'cancelled', 'rejected'].includes(appointment.status)) {
+    const reasonMsg = appointment.status === 'pending'
+      ? 'This appointment is PENDING Doctor Confirmation. Your Token Slip & QR Code Pass will unlock once the doctor confirms it.'
+      : `Slip & QR Pass are not available because this appointment is ${appointment.status.toUpperCase()}.`;
+    window.showToast(reasonMsg, 'warning');
+    return;
+  }
+
   if (!window.jspdf || !window.jspdf.jsPDF) {
     window.showToast('jsPDF library loading... Please try again in a moment.', 'warning');
     return;
@@ -96,17 +124,12 @@ window.generateAppointmentReceiptPDF = async function(appointment) {
   doc.setTextColor(...secondaryColor);
   doc.text(`Status: ${(appointment.status || 'Confirmed').toUpperCase()}  |  Priority: ${(appointment.priority || 'Normal').toUpperCase()}`, 74, 54, { align: 'center' });
 
-  // 3. Generate and Embed Scannable QR Code
-  const qrVerificationPayload = JSON.stringify({
-    appointment_id: appointment.id,
-    token_number: appointment.token_number,
-    patient_id: appointment.patient_id,
-    doctor_id: appointment.doctor_id,
-    verification_hash: appointment.verification_hash || ('HASH-' + (appointment.id ? appointment.id.slice(0, 8) : 'CAREPULSE')),
-    appointment_date: appointment.appointment_date,
-    time_slot: appointment.time_slot || appointment.appointment_time,
-    v: 1
-  });
+  // 3. Generate and Embed Scannable QR Code (Non-PII verification token)
+  const verificationHash = appointment.verification_hash ||
+    (window.CarePulseDB ? window.CarePulseDB.generateVerificationHash(appointment) : `CP-${(appointment.id || 'AUTH').slice(0, 8).toUpperCase()}`);
+  const qrVerificationPayload = window.CarePulseDB?.generateAppointmentQRCodeData
+    ? window.CarePulseDB.generateAppointmentQRCodeData({ ...appointment, verification_hash: verificationHash })
+    : `CAREPULSE:VERIFY:${appointment.id}:${appointment.token_number || ''}:${verificationHash}`;
 
   const qrDataUrl = await ensureQRCodeDataURL(qrVerificationPayload);
   if (qrDataUrl) {

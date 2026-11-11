@@ -244,7 +244,7 @@ ON public.appointment_reminders FOR UPDATE
 USING (true);
 
 CREATE POLICY "Waiting list is readable by users and admin"
-ON public.waiting_list FOR SELECT
+jON public.waiting_list FOR SELECT
 USING (true);
 
 CREATE POLICY "Waiting list can be inserted by patients"

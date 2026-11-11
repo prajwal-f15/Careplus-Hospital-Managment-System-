@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../css/style.css">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
@@ -144,7 +145,7 @@
 
         <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-4">
           <button type="submit" id="submit-booking-btn" class="px-8 py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-600/25 transition flex items-center gap-2">
-            <i data-lucide="check" class="w-4 h-4"></i> Confirm Appointment & Generate Token
+            <i data-lucide="send" class="w-4 h-4"></i> Submit Appointment Request
           </button>
         </div>
       </div>
@@ -154,18 +155,21 @@
   <!-- BOOKING SUCCESS MODAL -->
   <div id="booking-success-modal" class="modal-overlay">
     <div class="modal-box p-8 text-center space-y-6">
-      <div class="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
-        <i data-lucide="check-circle" class="w-8 h-8"></i>
+      <div id="success-modal-icon" class="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-md">
+        <i data-lucide="clock" class="w-8 h-8"></i>
       </div>
 
       <div>
-        <h3 class="text-xl font-black text-slate-900">Appointment Booked Successfully!</h3>
-        <p class="text-xs text-slate-500 mt-1">Your consultation is scheduled and a digital queue token has been generated.</p>
+        <span id="success-status-pill" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 mb-2">
+          ⏳ Pending Doctor Confirmation
+        </span>
+        <h3 id="success-modal-title" class="text-xl font-black text-slate-900">Appointment Request Submitted!</h3>
+        <p id="success-modal-desc" class="text-xs text-slate-500 mt-1">Your booking request has been sent to your doctor. Once confirmed, you will receive a notification and your PDF Slip & Scannable QR Pass will be unlocked.</p>
       </div>
 
       <!-- Generated Token Card -->
       <div class="bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-200/80 rounded-2xl p-6 text-center">
-        <span class="text-[10px] font-bold uppercase tracking-wider text-sky-700">Digital Queue Token</span>
+        <span class="text-[10px] font-bold uppercase tracking-wider text-sky-700">Assigned Queue Token</span>
         <div id="success-token-display" class="text-4xl font-black text-sky-900 mt-1">CARD-001</div>
         <div class="flex items-center justify-center gap-4 text-xs text-slate-600 mt-3">
           <span><strong>Date:</strong> <span id="success-date-display">2026-09-10</span></span>
@@ -173,12 +177,17 @@
         </div>
       </div>
 
+      <div id="success-pending-qr-note" class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 font-semibold flex items-center justify-center gap-2">
+        <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-600"></i>
+        <span>Slip Download & QR Pass will unlock immediately after Doctor confirms.</span>
+      </div>
+
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
-        <button id="success-download-btn" class="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
-          <i data-lucide="download" class="w-4 h-4"></i> Download Slip (PDF)
+        <button id="success-download-btn" class="hidden w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+          <i data-lucide="download" class="w-4 h-4"></i> Download Slip (QR)
         </button>
-        <a href="queue-status.html" class="w-full sm:w-auto px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition shadow-md">
-          Track Live Queue →
+        <a href="appointments.html" class="w-full sm:w-auto px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition shadow-md">
+          View My Appointments (Pending) →
         </a>
       </div>
     </div>

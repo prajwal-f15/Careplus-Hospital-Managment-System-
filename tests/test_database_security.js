@@ -202,3 +202,4 @@ runSecurityTests().catch(err => {
   console.error('Fatal error during security test:', err);
   process.exit(1);
 });
+

@@ -57,3 +57,4 @@ if (missingCount === 0) {
   console.error('Found ' + missingCount + ' missing assets.');
   process.exit(1);
 }
+

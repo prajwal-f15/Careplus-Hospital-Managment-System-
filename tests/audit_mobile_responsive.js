@@ -62,3 +62,4 @@ if (issues.length === 0) {
   console.log('Found ' + issues.length + ' potential responsiveness issues:');
   issues.forEach(i => console.log('  ⚠ ' + i.file + ' : ' + i.rule));
 }
+

@@ -231,7 +231,8 @@
 
       currentAppointment = appt;
       const isCompleted = appt.status === 'completed';
-      const isConfirmed = ['confirmed', 'pending'].includes(appt.status);
+      const isConfirmedOrAfter = !['pending', 'cancelled', 'rejected'].includes(appt.status);
+      const isConfirmed = appt.status === 'confirmed';
       const isCheckedIn = appt.status === 'checked_in' || appt.status === 'checked-in' || !!appt.checked_in_at;
       const isToday = appt.appointment_date === new Date().toISOString().split('T')[0];
       const canReschedule = window.CarePulseDB.canRescheduleAppointment(appt);
@@ -244,9 +245,13 @@
 
       // Render Top Action Buttons
       actionBtns.innerHTML = `
+        ${isConfirmedOrAfter ? `
         <button onclick="window.generateAppointmentReceiptPDF(currentAppointment)" class="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition flex items-center gap-1.5" title="Download Token Slip with QR Code">
-          <i data-lucide="download" class="w-4 h-4 text-sky-600"></i> Slip PDF
-        </button>
+          <i data-lucide="download" class="w-4 h-4 text-sky-600"></i> Download Slip (QR)
+        </button>` : appt.status === 'pending' ? `
+        <span class="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 flex items-center gap-1.5">
+          <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-600"></i> Slip & QR Pending Approval
+        </span>` : ''}
         <button onclick="openDoctorChat()" class="px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-xs font-bold text-teal-800 shadow-sm transition flex items-center gap-1.5" title="Two-way Chat with Doctor">
           <i data-lucide="message-square" class="w-4 h-4 text-teal-600"></i> Chat with Doctor
         </button>
@@ -267,9 +272,9 @@
       // Status Timeline Steps
       const steps = [
         { label: 'Booked', active: true },
-        { label: 'Confirmed', active: ['confirmed', 'checked_in', 'called', 'in_consultation', 'completed'].includes(appt.status) },
-        { label: 'Checked In', active: ['checked_in', 'called', 'in_consultation', 'completed'].includes(appt.status) },
-        { label: 'In Room', active: ['called', 'in_consultation', 'completed'].includes(appt.status) },
+        { label: 'Confirmed', active: ['confirmed', 'checked_in', 'checked-in', 'called', 'in-progress', 'in_consultation', 'in-consultation', 'completed'].includes(appt.status) },
+        { label: 'Checked In', active: ['checked_in', 'checked-in', 'called', 'in-progress', 'in_consultation', 'in-consultation', 'completed'].includes(appt.status) },
+        { label: 'In Room', active: ['called', 'in-progress', 'in_consultation', 'in-consultation', 'completed'].includes(appt.status) },
         { label: 'Completed', active: appt.status === 'completed' }
       ];
 
@@ -297,7 +302,7 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="token-badge text-sm">${appt.token_number}</span>
-              <span class="status-badge ${appt.status} uppercase">${appt.status.replace('_', ' ')}</span>
+              <span class="status-badge ${appt.status} uppercase">${appt.status === 'pending' ? 'Pending Confirmation' : appt.status.replace('_', ' ')}</span>
               ${appt.reschedule_count > 0 ? `
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">Rescheduled (${appt.reschedule_count}x)</span>
               ` : ''}
@@ -307,14 +312,24 @@
           </div>
 
           <!-- QR Pass Widget -->
+          ${isConfirmedOrAfter ? `
           <div class="flex items-center gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-            <div id="qrcode-box" class="w-16 h-16 bg-white p-1 rounded-xl shadow-xs flex items-center justify-center"></div>
+            <div id="qrcode-box" class="w-24 h-24 bg-white p-1.5 rounded-xl shadow-xs flex items-center justify-center border border-slate-200"></div>
             <div class="space-y-1">
-              <div class="text-[10px] uppercase font-bold text-slate-400">Digital Pass</div>
-              <div class="text-xs font-bold text-slate-800">Scan at Reception</div>
-              <div class="text-[10px] font-mono text-slate-400">${appt.verification_hash || window.CarePulseDB.generateVerificationHash(appt)}</div>
+              <div class="text-[10px] uppercase font-bold text-emerald-600">Verified Digital QR Pass</div>
+              <div class="text-xs font-bold text-slate-800">Scan at Doctor / Admin Desk</div>
+              <div class="text-[10px] font-mono text-slate-500">${appt.verification_hash || window.CarePulseDB.generateVerificationHash(appt)}</div>
             </div>
-          </div>
+          </div>` : `
+          <div class="flex items-center gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-200 max-w-xs">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+            <div class="space-y-0.5">
+              <div class="text-xs font-bold text-amber-900">${appt.status === 'pending' ? 'QR & Slip Pending Approval' : 'QR Pass Unavailable'}</div>
+              <div class="text-[11px] text-amber-700">${appt.status === 'pending' ? 'Your Doctor will confirm shortly. QR Pass & PDF Slip unlock automatically upon confirmation.' : `Status is ${appt.status.toUpperCase()}.`}</div>
+            </div>
+          </div>`}
         </div>
 
         <!-- Visual Status Timeline -->
@@ -396,15 +411,15 @@
 
       if (window.lucide) window.lucide.createIcons();
 
-      // Render Secure QR Code
+      // Render Secure QR Code (only when confirmed or later)
       const qrContainer = document.getElementById('qrcode-box');
-      if (qrContainer && window.QRCode) {
+      if (isConfirmedOrAfter && qrContainer && window.QRCode) {
         qrContainer.innerHTML = '';
         const qrPayload = window.CarePulseDB.generateAppointmentQRCodeData(appt);
         new window.QRCode(qrContainer, {
           text: qrPayload,
-          width: 56,
-          height: 56,
+          width: 82,
+          height: 82,
           colorDark: "#0f172a",
           colorLight: "#ffffff",
           correctLevel: window.QRCode.CorrectLevel.M
@@ -547,6 +562,22 @@
     document.addEventListener('DOMContentLoaded', () => {
       window.Auth.requireAuth(['patient']);
       loadAppointmentDetails();
+
+      window.addEventListener('carepulse_db_change', loadAppointmentDetails);
+      if (window.CarePulseDB?.subscribeToAppointments) {
+        window.CarePulseDB.subscribeToAppointments(() => {
+          loadAppointmentDetails();
+        });
+      }
+      const user = window.Auth.getCurrentUser();
+      if (user?.id && window.CarePulseDB?.subscribeToNotifications) {
+        window.CarePulseDB.subscribeToNotifications(user.id, (notif) => {
+          if (window.showToast && notif?.new) {
+            window.showToast(`${notif.new.title}: ${notif.new.message}`, 'info');
+          }
+          loadAppointmentDetails();
+        });
+      }
     });
   </script>
 </body>
