@@ -514,27 +514,78 @@ window.Auth = {
     };
   },
 
-  // Forgot Password - Send Reset Email via Supabase
-  async forgotPassword(email) {
+  // Shared Password Strength Validator (used by Auth.updatePassword & reset-password.html)
+  validatePasswordStrength(password) {
+    const val = typeof password === 'string' ? password : '';
+    const checks = {
+      minLength: val.length >= 8,
+      hasUpper: /[A-Z]/.test(val),
+      hasLower: /[a-z]/.test(val),
+      hasNumber: /\d/.test(val)
+    };
+    const isValid = checks.minLength && checks.hasUpper && checks.hasLower && checks.hasNumber;
+    return { isValid, checks };
+  },
+
+  // Forgot Password - Invoke Supabase Edge Function + Sendlib Delivery (No Direct SMTP)
+  async forgotPassword(email, options = {}) {
     const sb = window.CarePulseDB.getClient();
     if (!sb) throw new Error('Supabase client not connected');
 
-    const cleanEmail = email.trim().toLowerCase();
-    const currentOrigin = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
-    const resetUrl = `${currentOrigin}/reset-password.html`;
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const emailPattern = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+    if (!cleanEmail || cleanEmail.length > 254 || !emailPattern.test(cleanEmail)) {
+      throw new Error('Please enter a valid email address.');
+    }
 
-    const { data, error } = await sb.auth.resetPasswordForEmail(cleanEmail, {
+    const baseDir = window.location.pathname.replace(/\/[^/]*$/, '');
+    const resetUrl = `${window.location.origin}${baseDir}/reset-password.html`;
+
+    const body = {
+      email: cleanEmail,
       redirectTo: resetUrl
-    });
+    };
+    if (options.captchaToken) body.captchaToken = options.captchaToken;
+    if (options.website) body.website = options.website;
 
-    if (error) throw new Error(error.message);
+    let result;
+    try {
+      result = await sb.functions.invoke('supabase-functions-new-send-password-reset', {
+        body
+      });
+    } catch (networkErr) {
+      throw new Error(networkErr?.message || 'Network error while requesting password recovery.');
+    }
+
+    const { data, error } = result || {};
+    if (error) {
+      let detailedMsg = error.message || 'Failed to send password reset email.';
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          const errPayload = await error.context.json();
+          if (errPayload?.error) detailedMsg = errPayload.error;
+        }
+      } catch (_) {}
+      throw new Error(detailedMsg);
+    }
+
     return data;
   },
 
-  // Update Password after reset link clicked
+  // Update Password after verified recovery link session
   async updatePassword(newPassword) {
     const sb = window.CarePulseDB.getClient();
     if (!sb) throw new Error('Supabase client not connected');
+
+    const strength = this.validatePasswordStrength(newPassword);
+    if (!strength.isValid) {
+      throw new Error('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+    }
+
+    const { data: sessionData, error: sessionErr } = await sb.auth.getSession();
+    if (sessionErr || !sessionData?.session) {
+      throw new Error('Your password reset link is missing, expired, or already used. Please request a new reset link.');
+    }
 
     const { data, error } = await sb.auth.updateUser({
       password: newPassword
