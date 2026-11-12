@@ -135,7 +135,9 @@ function resolveSafeRedirectUrl(requestedRedirect: unknown, reqOrigin: string | 
     const candidate = new URL(requestedRedirect.trim());
     if (!['http:', 'https:'].includes(candidate.protocol)) return defaultRedirect;
     if (!isAllowedOrigin(candidate.origin)) return defaultRedirect;
-    if (!candidate.pathname.endsWith('/reset-password.html')) return defaultRedirect;
+    if (!candidate.pathname.endsWith('/reset-password.html') && !candidate.pathname.endsWith('/reset-password')) {
+      return defaultRedirect;
+    }
     return `${candidate.origin}${candidate.pathname}`;
   } catch {
     return defaultRedirect;
