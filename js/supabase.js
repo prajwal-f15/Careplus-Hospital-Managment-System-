@@ -68,31 +68,108 @@ window.CarePulseDB = {
   // ============================================================================
   async getDepartments() {
     const sb = getSupabaseClient();
-    if (!sb) return [];
-    const { data, error } = await sb
-      .from('departments')
-      .select('*')
-      .order('name', { ascending: true });
-    if (error) {
-      console.error('getDepartments error:', error);
-      return [];
+    const CORE_DEPARTMENTS = [
+      {
+        id: 'd1111111-1111-1111-1111-111111111111',
+        name: 'Cardiology',
+        code: 'CARD',
+        description: 'Comprehensive heart and cardiovascular care with modern diagnostic labs.',
+        icon: 'heart',
+        room_number: 'Wing A - Room 101'
+      },
+      {
+        id: 'd2222222-2222-2222-2222-222222222222',
+        name: 'Neurology',
+        code: 'NEUR',
+        description: 'Advanced diagnosis and treatment for brain, spine, and nerve disorders.',
+        icon: 'brain',
+        room_number: 'Wing B - Room 204'
+      },
+      {
+        id: 'd3333333-3333-3333-3333-333333333333',
+        name: 'Orthopedics',
+        code: 'ORTH',
+        description: 'Joint replacement, fracture care, and musculoskeletal rehabilitation.',
+        icon: 'bone',
+        room_number: 'Wing C - Room 105'
+      },
+      {
+        id: 'd4444444-4444-4444-4444-444444444444',
+        name: 'Dermatology',
+        code: 'DERM',
+        description: 'Clinical skin treatments, acne care, and cosmetic dermatology.',
+        icon: 'sparkles',
+        room_number: 'Wing A - Room 302'
+      },
+      {
+        id: 'd5555555-5555-5555-5555-555555555555',
+        name: 'Pediatrics',
+        code: 'PED',
+        description: 'Compassionate pediatric healthcare and developmental wellness for children.',
+        icon: 'baby',
+        room_number: 'Wing D - Room 108'
+      },
+      {
+        id: 'd6666666-6666-6666-6666-666666666666',
+        name: 'General Medicine',
+        code: 'GEN',
+        description: 'Primary healthcare, preventive wellness, and infectious disease management.',
+        icon: 'stethoscope',
+        room_number: 'Wing B - Room 102'
+      },
+      {
+        id: 'd7777777-7777-7777-7777-777777777777',
+        name: 'Dentistry',
+        code: 'DENT',
+        description: 'Complete oral health, root canals, orthodontics, and smile design.',
+        icon: 'smile',
+        room_number: 'Wing C - Room 205'
+      },
+      {
+        id: 'd8888888-8888-8888-8888-888888888888',
+        name: 'Ophthalmology',
+        code: 'OPHT',
+        description: 'Eye care, laser vision correction, cataract surgery, and retinal care.',
+        icon: 'eye',
+        room_number: 'Wing A - Room 208'
+      }
+    ];
+
+    if (!sb) return CORE_DEPARTMENTS;
+    try {
+      const { data, error } = await sb
+        .from('departments')
+        .select('*')
+        .order('name', { ascending: true });
+      if (error || !data || data.length === 0) {
+        if (error) console.warn('getDepartments note:', error.message || error);
+        return CORE_DEPARTMENTS;
+      }
+      return data;
+    } catch (err) {
+      console.warn('getDepartments error, using core fallback:', err);
+      return CORE_DEPARTMENTS;
     }
-    return data || [];
   },
 
   async getDepartmentById(id) {
     const sb = getSupabaseClient();
-    if (!sb) return null;
-    const { data, error } = await sb
-      .from('departments')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (error) {
-      console.error('getDepartmentById error:', error);
-      return null;
+    const depts = await this.getDepartments();
+    const localMatch = depts.find(d => d.id === id);
+    if (!sb) return localMatch || null;
+    try {
+      const { data, error } = await sb
+        .from('departments')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error || !data) {
+        return localMatch || null;
+      }
+      return data;
+    } catch (err) {
+      return localMatch || null;
     }
-    return data;
   },
 
   async addDepartment(deptData) {
@@ -165,6 +242,7 @@ window.CarePulseDB = {
         specialization: 'Senior Cardiologist',
         qualification: 'MBBS, MD (Medicine), DM (Cardiology)',
         experience_years: 15,
+        department_id: 'd1111111-1111-1111-1111-111111111111',
         department_name: 'Cardiology',
         department_code: 'CARD',
         room_number: 'Wing A, OPD 102',
@@ -192,6 +270,7 @@ window.CarePulseDB = {
         specialization: 'Consultant Neurologist',
         qualification: 'MBBS, MD, DM (Neurology)',
         experience_years: 12,
+        department_id: 'd2222222-2222-2222-2222-222222222222',
         department_name: 'Neurology',
         department_code: 'NEUR',
         room_number: 'Wing B, Room 204',
@@ -219,6 +298,7 @@ window.CarePulseDB = {
         specialization: 'Orthopedic Surgeon',
         qualification: 'MBBS, MS (Ortho), M.Ch',
         experience_years: 14,
+        department_id: 'd3333333-3333-3333-3333-333333333333',
         department_name: 'Orthopedics',
         department_code: 'ORTH',
         room_number: 'Wing C, Room 301',
@@ -246,6 +326,7 @@ window.CarePulseDB = {
         specialization: 'Consultant Interventional Cardiologist',
         qualification: 'MBBS, MD (Medicine), DM (Cardiology)',
         experience_years: 12,
+        department_id: 'd1111111-1111-1111-1111-111111111111',
         department_name: 'Cardiology',
         department_code: 'CARD',
         room_number: 'OPD Block 1, Room 104',
@@ -262,6 +343,146 @@ window.CarePulseDB = {
         consultation_modes: 'both',
         city_name: 'Yavatmal',
         profile_image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400'
+      },
+      {
+        id: 'd0c55555-5555-5555-5555-555555555555',
+        profile_id: '55555555-5555-5555-5555-555555555555',
+        full_name: 'Dr. Ananya Roy',
+        email: 'ananya.roy@hospital.com',
+        phone: '+91 9876500006',
+        gender: 'Female',
+        specialization: 'Consultant Dermatologist',
+        qualification: 'MBBS, MD (Dermatology)',
+        experience_years: 9,
+        department_id: 'd4444444-4444-4444-4444-444444444444',
+        department_name: 'Dermatology',
+        department_code: 'DERM',
+        room_number: 'Wing A, Room 302',
+        consultation_fee: 55.00,
+        rating: 4.8,
+        total_reviews: 31,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2015-0612',
+        registration_year: 2015,
+        consultation_modes: 'both',
+        city_name: 'Mumbai',
+        profile_image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400'
+      },
+      {
+        id: 'd0c66666-6666-6666-6666-666666666666',
+        profile_id: '66666666-6666-6666-6666-666666666666',
+        full_name: 'Dr. Aris Thorne',
+        email: 'aris.thorne@hospital.com',
+        phone: '+91 9876500007',
+        gender: 'Male',
+        specialization: 'Lead Pediatrician',
+        qualification: 'MBBS, MD (Pediatrics), DNB',
+        experience_years: 12,
+        department_id: 'd5555555-5555-5555-5555-555555555555',
+        department_name: 'Pediatrics',
+        department_code: 'PED',
+        room_number: 'Wing D, Room 108',
+        consultation_fee: 50.00,
+        rating: 4.9,
+        total_reviews: 47,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2013-0491',
+        registration_year: 2013,
+        consultation_modes: 'both',
+        city_name: 'Pune',
+        profile_image: 'https://images.unsplash.com/photo-1622902046580-2b47f47f5471?w=400'
+      },
+      {
+        id: 'd0c77777-7777-7777-7777-777777777777',
+        profile_id: '77777777-7777-7777-7777-777777777777',
+        full_name: 'Dr. Meera Joshi',
+        email: 'meera.joshi@carepulse.local',
+        phone: '+91 94221 88776',
+        gender: 'Female',
+        specialization: 'Senior Consultant Physician',
+        qualification: 'MBBS, MD (General Medicine)',
+        experience_years: 16,
+        department_id: 'd6666666-6666-6666-6666-666666666666',
+        department_name: 'General Medicine',
+        department_code: 'GEN',
+        room_number: 'Wing B, Room 102',
+        consultation_fee: 45.00,
+        rating: 4.8,
+        total_reviews: 26,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2009-0211',
+        registration_year: 2009,
+        consultation_modes: 'in_person',
+        city_name: 'Yavatmal',
+        profile_image: 'https://images.unsplash.com/photo-1594824813629-456cb04c3547?w=400'
+      },
+      {
+        id: 'd0c88888-8888-8888-8888-888888888888',
+        profile_id: '88888888-8888-8888-8888-888888888888',
+        full_name: 'Dr. Sneha Kulkarni',
+        email: 'sneha.kulkarni@carepulse.local',
+        phone: '+91 98221 66554',
+        gender: 'Female',
+        specialization: 'Chief Dental Surgeon',
+        qualification: 'BDS, MDS (Conservative Dentistry)',
+        experience_years: 10,
+        department_id: 'd7777777-7777-7777-7777-777777777777',
+        department_name: 'Dentistry',
+        department_code: 'DENT',
+        room_number: 'Wing C, Room 205',
+        consultation_fee: 40.00,
+        rating: 4.7,
+        total_reviews: 19,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Dental Council',
+        medical_registration_number: 'MDC-2014-0732',
+        registration_year: 2014,
+        consultation_modes: 'in_person',
+        city_name: 'Nagpur',
+        profile_image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400'
+      },
+      {
+        id: 'd0c99999-9999-9999-9999-999999999999',
+        profile_id: '99999999-9999-9999-9999-999999999999',
+        full_name: 'Dr. Amit Bansal',
+        email: 'amit.bansal@hospital.com',
+        phone: '+91 9876500008',
+        gender: 'Male',
+        specialization: 'Consultant Ophthalmologist',
+        qualification: 'MBBS, MS (Ophthalmology)',
+        experience_years: 13,
+        department_id: 'd8888888-8888-8888-8888-888888888888',
+        department_name: 'Ophthalmology',
+        department_code: 'OPHT',
+        room_number: 'Wing A, Room 208',
+        consultation_fee: 55.00,
+        rating: 4.8,
+        total_reviews: 33,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2011-0520',
+        registration_year: 2011,
+        consultation_modes: 'both',
+        city_name: 'Mumbai',
+        profile_image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400'
       }
     ];
 

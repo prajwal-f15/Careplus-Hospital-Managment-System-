@@ -1108,7 +1108,7 @@ window.AdminApp = {
     const doctors = await window.CarePulseDB.getDoctors();
 
     tableBody.innerHTML = this.cachedDepartments.map(d => {
-      const docCount = doctors.filter(doc => doc.department_id === d.id).length;
+      const docCount = doctors.filter(doc => doc.department_id === d.id || doc.department_name === d.name).length;
       return `
         <tr class="border-b border-slate-100 hover:bg-slate-50/75 transition">
           <td class="py-3.5 px-4">
@@ -1209,7 +1209,7 @@ window.AdminApp = {
     const reportTable = document.getElementById('department-utilization-report');
     if (reportTable) {
       reportTable.innerHTML = departments.map(dept => {
-        const deptDoctors = doctors.filter(d => d.department_id === dept.id);
+        const deptDoctors = doctors.filter(d => d.department_id === dept.id || d.department_name === dept.name);
         const deptDocIds = deptDoctors.map(d => d.id);
         const deptAppointments = appointments.filter(a => deptDocIds.includes(a.doctor_id));
         const completed = deptAppointments.filter(a => a.status === 'completed').length;

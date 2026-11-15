@@ -384,7 +384,10 @@ window.PatientApp = {
     // Populate Doctors
     const populateDoctors = (deptId = null) => {
       if (!doctorSelect) return;
-      const filtered = deptId ? doctors.filter(d => d.department_id === deptId) : doctors;
+      const targetDeptObj = deptId ? departments.find(x => x.id === deptId) : null;
+      const filtered = deptId 
+        ? doctors.filter(d => d.department_id === deptId || (targetDeptObj && d.department_name === targetDeptObj.name)) 
+        : doctors;
       doctorSelect.innerHTML = `<option value="">-- Choose Specialist --</option>` + 
         filtered.map(d => `<option value="${d.id}">${d.full_name} (${d.specialization})</option>`).join('');
       
@@ -392,7 +395,9 @@ window.PatientApp = {
         doctorSelect.value = preDoctorId;
         this.bookingState.doctorId = preDoctorId;
         const targetDoc = doctors.find(d => d.id === preDoctorId);
-        if (targetDoc && deptSelect) deptSelect.value = targetDoc.department_id;
+        if (targetDoc && deptSelect) {
+          deptSelect.value = targetDoc.department_id || (departments.find(x => x.name === targetDoc.department_name)?.id || '');
+        }
       }
     };
 

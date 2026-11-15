@@ -102,8 +102,20 @@ window.DoctorDirectory = {
     this.departments = await window.CarePulseDB.getDepartments();
     this.doctors = await window.CarePulseDB.getDoctors();
 
-    const prevSelectedDept = document.querySelector('input[name="dept-filter"]:checked')?.value || 'all';
+    const urlParams = new URLSearchParams(window.location.search);
+    const deptParam = urlParams.get('dept');
+    const cityParam = urlParams.get('city');
+
+    const prevSelectedDept = document.querySelector('input[name="dept-filter"]:checked')?.value || deptParam || 'all';
     this.renderDepartmentFilter(prevSelectedDept);
+
+    if (cityParam) {
+      const cityFilter = document.getElementById('city-filter');
+      if (cityFilter && [...cityFilter.options].some(o => o.value.toLowerCase() === cityParam.toLowerCase())) {
+        cityFilter.value = cityParam;
+      }
+    }
+
     this.applyFilters();
   },
 
@@ -118,7 +130,7 @@ window.DoctorDirectory = {
         <span class="ml-auto text-xs text-slate-400">(${this.doctors.length})</span>
       </label>
       ${this.departments.map(d => {
-        const count = this.doctors.filter(doc => doc.department_id === d.id).length;
+        const count = this.doctors.filter(doc => doc.department_id === d.id || doc.department_name === d.name).length;
         return `
           <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition">
             <input type="radio" name="dept-filter" value="${d.id}" ${selectedDept === d.id ? 'checked' : ''} class="text-sky-600 focus:ring-sky-500 rounded">
@@ -291,7 +303,9 @@ window.DoctorDirectory = {
         (doc.department_name && doc.department_name.toLowerCase().includes(query)) ||
         (doc.hospital_name && doc.hospital_name.toLowerCase().includes(query));
 
-      const matchesDept = selectedDept === 'all' || doc.department_id === selectedDept;
+      const matchesDept = selectedDept === 'all' || 
+        doc.department_id === selectedDept || 
+        (this.departments.find(d => d.id === selectedDept)?.name === doc.department_name);
       const matchesExp = (doc.experience_years || 0) >= minExp;
 
       // Consultation mode filter

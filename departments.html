@@ -29,6 +29,7 @@
         <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
           <a href="index.html" class="hover:text-sky-600 transition">Home</a>
           <a href="doctors.html" class="hover:text-sky-600 transition">Find Doctors</a>
+          <a href="hospitals.html" class="hover:text-sky-600 transition">Hospitals</a>
           <a href="departments.html" class="text-sky-600">Departments</a>
           <a href="about.html" class="hover:text-sky-600 transition">About Us</a>
           <a href="contact.html" class="hover:text-sky-600 transition">Contact</a>
@@ -66,8 +67,20 @@
         const grid = document.getElementById('departments-list-grid');
 
         if (grid) {
+          if (!depts || depts.length === 0) {
+            grid.innerHTML = `
+              <div class="col-span-full py-16 text-center bg-white rounded-3xl border border-slate-200">
+                <i data-lucide="layers" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+                <h3 class="font-bold text-slate-700">No Clinical Departments Available</h3>
+                <p class="text-xs text-slate-400 mt-1">Please check database connectivity or contact system administration.</p>
+              </div>
+            `;
+            if (window.lucide) window.lucide.createIcons();
+            return;
+          }
+
           grid.innerHTML = depts.map(d => {
-            const deptDoctors = doctors.filter(doc => doc.department_id === d.id);
+            const deptDoctors = doctors.filter(doc => doc.department_id === d.id || doc.department_name === d.name);
             return `
               <div class="bg-white rounded-3xl p-6 border border-slate-200 hover:border-sky-300 hover:shadow-xl transition flex flex-col justify-between group">
                 <div>
@@ -75,19 +88,19 @@
                     <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center group-hover:scale-110 transition">
                       <i data-lucide="${d.icon || 'activity'}" class="w-6 h-6"></i>
                     </div>
-                    <span class="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg">${d.code}</span>
+                    <span class="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">${d.code}</span>
                   </div>
 
-                  <h3 class="text-lg font-bold text-slate-900">${d.name}</h3>
+                  <h3 class="text-lg font-bold text-slate-900 group-hover:text-sky-600 transition">${d.name}</h3>
                   <p class="text-xs text-slate-500 mt-2 leading-relaxed">${d.description}</p>
                   <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span>${d.room_number || 'Wing A'}</span>
-                    <span class="font-bold text-slate-800">${deptDoctors.length} Specialists</span>
+                    <span class="flex items-center gap-1.5"><i data-lucide="door-open" class="w-3.5 h-3.5 text-slate-400"></i> ${d.room_number || 'Wing A'}</span>
+                    <span class="font-bold text-slate-800 bg-slate-50 px-2 py-0.5 rounded-lg">${deptDoctors.length} Specialists</span>
                   </div>
                 </div>
 
                 <div class="mt-6">
-                  <a href="doctors.html" class="w-full block py-2.5 bg-slate-50 group-hover:bg-sky-600 group-hover:text-white text-slate-700 rounded-xl text-xs font-bold text-center transition">
+                  <a href="doctors.html?dept=${encodeURIComponent(d.id)}" class="w-full block py-2.5 bg-slate-50 group-hover:bg-sky-600 group-hover:text-white text-slate-700 rounded-xl text-xs font-bold text-center transition">
                     Browse Department Doctors →
                   </a>
                 </div>

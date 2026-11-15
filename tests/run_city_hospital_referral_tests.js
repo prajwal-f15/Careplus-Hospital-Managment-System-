@@ -24,6 +24,7 @@ const suites = [
   { name: 'Phase 4: All-India Patient Search, Hospital & Doctor Profiles', script: 'test_patient_search_profiles.js' },
   { name: 'Phase 5: Cross-City Referral System (Yavatmal ↔ Mumbai)', script: 'test_cross_city_referral_system.js' },
   { name: 'Phase 6 & 7: Appointment Integration, Teleconsultation & Security', script: 'test_appointment_referral_integration.js' },
+  { name: 'Phase 8: Clinical Departments Directory & Specialist Allocation', script: 'test_clinical_departments.js' },
   { name: 'Mobile Responsiveness & Viewport Audit (41 HTML Pages)', script: 'audit_mobile_responsive.js' }
 ];
 
@@ -51,3 +52,4 @@ for (const suite of suites) {
 console.log(`\n${colors.bold}${colors.cyan}======================================================================${colors.reset}`);
 console.log(`${colors.green}${colors.bold}ALL ${passedCount} OF ${suites.length} SUITES PASSED WITH 100% SUCCESS RATE!${colors.reset}`);
 console.log(`${colors.bold}${colors.cyan}======================================================================${colors.reset}\n`);
+
