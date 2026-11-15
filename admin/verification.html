@@ -26,10 +26,11 @@
           </div>
         </a>
 
-        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+        <nav class="hidden md:flex items-center gap-5 text-xs font-bold text-slate-300">
           <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
-          <a href="verification.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4"></i> Verifications</a>
+          <a href="hospitals.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building" class="w-4 h-4"></i> Hospitals & Clinics</a>
           <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="verification.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4"></i> Verifications</a>
           <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
           <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
           <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
@@ -349,6 +350,18 @@
         }
         await this.refresh();
         this.attachFormSubmit();
+
+        // Check URL parameters for tab switching
+        const urlParams = new URLSearchParams(window.location.search);
+        const reqTab = urlParams.get('tab');
+        if (reqTab && ['doctors', 'hospitals', 'affiliations', 'referrals', 'audit'].includes(reqTab)) {
+          this.setTab(reqTab);
+        }
+        const reqType = urlParams.get('type');
+        const reqId = urlParams.get('id');
+        if (reqType && reqId) {
+          setTimeout(() => this.openReview(reqType, reqId), 300);
+        }
       },
 
       async refresh() {

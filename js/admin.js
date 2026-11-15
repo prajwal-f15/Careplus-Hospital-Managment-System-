@@ -82,21 +82,21 @@ window.AdminApp = {
         <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
         <span>Home</span>
       </a>
+      <a href="hospitals.html" class="mobile-nav-item ${currentPath.includes('hospitals') ? 'active' : ''}">
+        <i data-lucide="building" class="w-5 h-5"></i>
+        <span>Hospitals</span>
+      </a>
       <a href="doctors.html" class="mobile-nav-item ${currentPath.includes('doctors') ? 'active' : ''}">
         <i data-lucide="stethoscope" class="w-5 h-5"></i>
         <span>Doctors</span>
       </a>
-      <a href="patients.html" class="mobile-nav-item ${currentPath.includes('patients') ? 'active' : ''}">
-        <i data-lucide="users" class="w-5 h-5"></i>
-        <span>Patients</span>
+      <a href="verification.html" class="mobile-nav-item ${currentPath.includes('verification') ? 'active' : ''}">
+        <i data-lucide="shield-check" class="w-5 h-5"></i>
+        <span>Verify</span>
       </a>
       <a href="appointments.html" class="mobile-nav-item ${currentPath.includes('appointments') ? 'active' : ''}">
         <i data-lucide="calendar" class="w-5 h-5"></i>
         <span>Appts</span>
-      </a>
-      <a href="departments.html" class="mobile-nav-item ${currentPath.includes('departments') ? 'active' : ''}">
-        <i data-lucide="building-2" class="w-5 h-5"></i>
-        <span>Depts</span>
       </a>
     `;
     document.body.appendChild(nav);
@@ -108,7 +108,8 @@ window.AdminApp = {
   // --------------------------------------------------------------------------
   async initDashboard() {
     const profiles = await window.CarePulseDB.getProfiles();
-    const doctors = await window.CarePulseDB.getDoctors();
+    const doctors = await window.CarePulseDB.getDoctors({ includeUnapproved: true });
+    const hospitals = await window.CarePulseDB.getHospitals({ includeUnapproved: true });
     const appointments = await window.CarePulseDB.getAppointments();
 
     const patients = profiles.filter(p => p.role === 'patient');
@@ -117,19 +118,50 @@ window.AdminApp = {
     const completed = appointments.filter(a => a.status === 'completed');
     const cancelled = appointments.filter(a => ['cancelled', 'rejected'].includes(a.status));
 
+    const pendingDocs = doctors.filter(d => d.verification_status === 'pending' || d.verification_status === 'under_review' || (!d.is_verified && d.verification_status !== 'rejected'));
+    const pendingHosps = hospitals.filter(h => h.verification_status === 'pending' || h.verification_status === 'under_review');
+    const totalPendingVerify = pendingDocs.length + pendingHosps.length;
+
     // Update Counter Stats
     const setStat = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.innerText = val;
     };
 
-    setStat('stat-admin-patients', patients.length);
+    setStat('stat-admin-hospitals', hospitals.length);
     setStat('stat-admin-doctors', doctors.length);
+    setStat('stat-admin-patients', patients.length);
+    setStat('stat-admin-pending-verifications', totalPendingVerify);
     setStat('stat-admin-appointments', appointments.length);
     setStat('stat-admin-pending', pending.length);
     setStat('stat-admin-confirmed', confirmed.length);
     setStat('stat-admin-completed', completed.length);
     setStat('stat-admin-cancelled', cancelled.length);
+
+    // Update verification badge in header
+    const navBadge = document.getElementById('nav-pending-badge');
+    if (navBadge) {
+      if (totalPendingVerify > 0) {
+        navBadge.classList.remove('hidden');
+        navBadge.innerText = totalPendingVerify;
+      } else {
+        navBadge.classList.add('hidden');
+      }
+    }
+
+    // Update verification alert banner on dashboard
+    const alertBanner = document.getElementById('admin-verification-alert-banner');
+    const bannerText = document.getElementById('admin-verification-banner-text');
+    if (alertBanner) {
+      if (totalPendingVerify > 0) {
+        alertBanner.classList.remove('hidden');
+        if (bannerText) {
+          bannerText.innerText = `${pendingDocs.length} doctor(s) and ${pendingHosps.length} hospital(s) are awaiting verification. They will not appear in patient searches until approved.`;
+        }
+      } else {
+        alertBanner.classList.add('hidden');
+      }
+    }
 
     // Render Recent Appointments Table in Admin Dashboard
     const recentTable = document.getElementById('admin-recent-appointments');
@@ -273,7 +305,7 @@ window.AdminApp = {
     const tableBody = document.getElementById('admin-doctors-table-body');
     if (!tableBody) return;
 
-    this.cachedDoctors = await window.CarePulseDB.getDoctors();
+    this.cachedDoctors = await window.CarePulseDB.getDoctors({ includeUnapproved: true });
     this.cachedDepartments = await window.CarePulseDB.getDepartments();
 
     // Populate department select in Add Doctor Modal
@@ -305,7 +337,13 @@ window.AdminApp = {
       return;
     }
 
-    tableBody.innerHTML = doctors.map(d => `
+    tableBody.innerHTML = doctors.map(d => {
+      const isApprv = d.verification_status === 'approved' || (d.is_verified && d.verification_status !== 'rejected');
+      const badgeCls = isApprv ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200';
+      const badgeIcon = isApprv ? 'shield-check' : 'shield-alert';
+      const badgeText = isApprv ? 'Approved' : (d.verification_status === 'rejected' ? 'Rejected' : 'Pending Review');
+
+      return `
       <tr class="border-b border-slate-100 hover:bg-slate-50/75 transition">
         <td class="py-3.5 px-4">
           <div class="flex items-center gap-3">
@@ -326,9 +364,9 @@ window.AdminApp = {
         </td>
         <td class="py-3.5 px-4 text-xs text-slate-600">${d.experience_years} Years</td>
         <td class="py-3.5 px-4">
-          <button onclick="window.AdminApp.toggleDoctorVerification('${d.id}', ${!d.is_verified})" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition ${d.is_verified ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}" title="Click to toggle verification">
-            <i data-lucide="${d.is_verified ? 'shield-check' : 'shield-alert'}" class="w-3.5 h-3.5"></i>
-            ${d.is_verified ? 'Verified' : 'Unverified'}
+          <button onclick="window.AdminApp.toggleDoctorVerification('${d.id}', ${!isApprv})" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition ${badgeCls}" title="Click to toggle verification status">
+            <i data-lucide="${badgeIcon}" class="w-3.5 h-3.5"></i>
+            ${badgeText}
           </button>
         </td>
         <td class="py-3.5 px-4">
@@ -339,6 +377,9 @@ window.AdminApp = {
         </td>
         <td class="py-3.5 px-4 text-right">
           <div class="flex items-center justify-end gap-1.5">
+            <a href="verification.html?tab=doctors" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Inspect Credentials & Council Certificate">
+              <i data-lucide="shield-check" class="w-4 h-4"></i>
+            </a>
             <button onclick="window.AdminApp.openEditDoctorModal('${d.id}')" class="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition" title="Edit Doctor Profile">
               <i data-lucide="edit-3" class="w-4 h-4"></i>
             </button>
@@ -348,7 +389,8 @@ window.AdminApp = {
           </div>
         </td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     if (window.lucide) window.lucide.createIcons();
   },
@@ -366,9 +408,10 @@ window.AdminApp = {
         d.room_number?.toLowerCase().includes(searchVal);
 
       const matchDept = (deptVal === 'all') || (d.department_name === deptVal);
+      const isApprv = d.verification_status === 'approved' || (d.is_verified && d.verification_status !== 'rejected');
       const matchVerify = (verifyVal === 'all') ||
-        (verifyVal === 'verified' && d.is_verified) ||
-        (verifyVal === 'unverified' && !d.is_verified);
+        (verifyVal === 'verified' && isApprv) ||
+        (verifyVal === 'unverified' && !isApprv);
 
       return matchSearch && matchDept && matchVerify;
     });
@@ -378,8 +421,14 @@ window.AdminApp = {
 
   async toggleDoctorVerification(doctorId, isVerified) {
     try {
-      await window.CarePulseDB.updateDoctor(doctorId, { is_verified: isVerified });
-      window.showToast(`Doctor verification marked as: ${isVerified ? 'VERIFIED' : 'UNVERIFIED'}`, 'success');
+      const user = window.Auth.getCurrentUser();
+      await window.CarePulseDB.verifyDoctor({
+        doctorId,
+        adminId: user?.id || 'a0000000-0000-0000-0000-000000000001',
+        decision: isVerified ? 'approved' : 'under_review',
+        reason: isVerified ? 'Administrative approval from Doctor Manager' : 'Administrative hold placed from Doctor Manager'
+      });
+      window.showToast(`Doctor verification updated: ${isVerified ? 'APPROVED' : 'UNDER REVIEW'}`, 'success');
       await this.initDoctorManager();
     } catch (err) {
       window.showToast(err.message, 'error');

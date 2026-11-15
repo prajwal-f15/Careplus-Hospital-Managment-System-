@@ -231,7 +231,8 @@ window.CarePulseDB = {
   // ============================================================================
   async getDoctors(filters = {}) {
     const sb = getSupabaseClient();
-    const CORE_DOCTORS = [
+    if (!this._coreDoctors) {
+      this._coreDoctors = [
       {
         id: 'd0c11111-1111-1111-1111-111111111111',
         profile_id: '11111111-1111-1111-1111-111111111111',
@@ -483,8 +484,38 @@ window.CarePulseDB = {
         consultation_modes: 'both',
         city_name: 'Mumbai',
         profile_image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400'
+      },
+      {
+        id: 'd0c88888-8888-8888-8888-888888888888',
+        profile_id: '88888888-8888-8888-8888-888888888888',
+        full_name: 'Dr. Sneha Patil',
+        email: 'sneha.patil@carepulse.local',
+        phone: '+91 94221 77665',
+        gender: 'Female',
+        specialization: 'Consultant Pediatrician',
+        qualification: 'MBBS, DCH, DNB (Pediatrics)',
+        experience_years: 7,
+        department_id: 'd5555555-5555-5555-5555-555555555555',
+        department_name: 'Pediatrics',
+        department_code: 'PED',
+        room_number: 'Wing B, Room 105',
+        consultation_fee: 45.00,
+        rating: 5.0,
+        total_reviews: 12,
+        is_verified: false,
+        verification_status: 'pending',
+        is_available_today: true,
+        is_active: false,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2017-0883',
+        registration_year: 2017,
+        consultation_modes: 'both',
+        city_name: 'Yavatmal',
+        profile_image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400'
       }
-    ];
+      ];
+    }
+    const CORE_DOCTORS = this._coreDoctors;
 
     if (!sb) {
       return filters.includeUnapproved ? CORE_DOCTORS : CORE_DOCTORS.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
@@ -579,6 +610,24 @@ window.CarePulseDB = {
         }
       }
 
+      if (list.length === 0) {
+        list = [...CORE_DOCTORS];
+      }
+
+      // Merge local doctors
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const localDocs = JSON.parse(localStorage.getItem('carepulse_local_doctors') || '[]');
+          const docIds = new Set(list.map(d => d.id || d.profile_id));
+          for (const ld of localDocs) {
+            if (!docIds.has(ld.id) && !docIds.has(ld.profile_id)) {
+              list.unshift(ld);
+              docIds.add(ld.id);
+            }
+          }
+        } catch (e) {}
+      }
+
       if (!filters.includeUnapproved) {
         list = list.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
       }
@@ -586,57 +635,53 @@ window.CarePulseDB = {
       return list;
     } catch (err) {
       console.error('getDoctors error:', err);
-      return [];
+      return filters.includeUnapproved ? CORE_DOCTORS : CORE_DOCTORS.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
     }
   },
 
   async getDoctorById(id) {
     const sb = getSupabaseClient();
-    if (!sb) return null;
-    try {
-      const { data, error } = await sb
-        .from('doctors')
-        .select(`
-          *,
-          profiles (
-            id,
-            full_name,
-            email,
-            phone,
-            profile_image,
-            gender
-          ),
-          departments (
-            id,
-            name,
-            code,
-            room_number
-          )
-        `)
-        .eq('id', id)
-        .maybeSingle();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('doctors')
+          .select(`
+            *,
+            profiles (
+              id,
+              full_name,
+              email,
+              phone,
+              profile_image,
+              gender
+            ),
+            departments (
+              id,
+              name,
+              code,
+              room_number
+            )
+          `)
+          .eq('id', id)
+          .maybeSingle();
 
-      if (error || !data) {
-        // Check if id is a profile id
-        const docByProfile = await this.getDoctorByProfileId(id);
-        if (docByProfile) return docByProfile;
-        return null;
-      }
-
-      return {
-        ...data,
-        full_name: data.profiles?.full_name || 'Dr. Specialist',
-        email: data.profiles?.email || '',
-        phone: data.profiles?.phone || '',
-        gender: data.profiles?.gender || 'Other',
-        profile_image: data.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
-        department_name: data.departments?.name || 'General Medicine',
-        department_code: data.departments?.code || 'GEN'
-      };
-    } catch (e) {
-      console.error('getDoctorById error:', e);
-      return null;
+        if (!error && data) {
+          return {
+            ...data,
+            full_name: data.profiles?.full_name || 'Dr. Specialist',
+            email: data.profiles?.email || '',
+            phone: data.profiles?.phone || '',
+            gender: data.profiles?.gender || 'Other',
+            profile_image: data.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+            department_name: data.departments?.name || 'General Medicine',
+            department_code: data.departments?.code || 'GEN'
+          };
+        }
+      } catch (e) {}
     }
+
+    const fallbackList = await this.getDoctors({ includeUnapproved: true });
+    return fallbackList.find(d => d.id === id || d.profile_id === id) || null;
   },
 
   async getDoctorByProfileId(profileId) {
@@ -2439,47 +2484,82 @@ window.CarePulseDB = {
   // ============================================================================
   async logAuditEvent({ action, entity_type, entity_id, details = {} }) {
     const sb = getSupabaseClient();
-    if (!sb) return null;
+    const user = window.Auth ? window.Auth.getCurrentUser() : null;
+    const auditRecord = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'audit-' + Date.now(),
+      user_id: user?.id || null,
+      action,
+      entity_type,
+      entity_id: String(entity_id || ''),
+      details,
+      created_at: new Date().toISOString()
+    };
 
-    try {
-      const user = window.Auth ? window.Auth.getCurrentUser() : null;
-      await sb.from('audit_logs').insert([{
-        user_id: user?.id || null,
-        action,
-        entity_type,
-        entity_id: String(entity_id || ''),
-        details
-      }]);
-      this.emitSyncEvent('audit_logs');
-    } catch (e) {
-      console.debug('Audit log note:', e);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('carepulse_local_audit_logs') || '[]');
+        stored.unshift(auditRecord);
+        localStorage.setItem('carepulse_local_audit_logs', JSON.stringify(stored.slice(0, 200)));
+      } catch (e) {}
     }
+
+    if (sb) {
+      try {
+        await sb.from('audit_logs').insert([auditRecord]);
+        this.emitSyncEvent('audit_logs');
+      } catch (e) {
+        console.debug('Audit log note:', e);
+      }
+    }
+
+    return auditRecord;
   },
 
   async getAuditLogs(limit = 50) {
     const sb = getSupabaseClient();
-    if (!sb) return [];
+    let logs = [];
 
-    try {
-      const { data, error } = await sb
-        .from('audit_logs')
-        .select(`
-          *,
-          profiles (full_name, email, role)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('audit_logs')
+          .select(`
+            *,
+            profiles (full_name, email, role)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
 
-      if (error) return [];
-      return (data || []).map(l => ({
-        ...l,
-        user_name: l.profiles?.full_name || 'System / Admin',
-        user_email: l.profiles?.email || '',
-        user_role: l.profiles?.role || 'system'
-      }));
-    } catch (e) {
-      return [];
+        if (!error && Array.isArray(data)) {
+          logs = data.map(l => ({
+            ...l,
+            user_name: l.profiles?.full_name || 'System / Admin',
+            user_email: l.profiles?.email || '',
+            user_role: l.profiles?.role || 'system'
+          }));
+        }
+      } catch (e) {}
     }
+
+    // Merge any locally logged audit events
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_audit_logs') || '[]');
+        const ids = new Set(logs.map(l => l.id));
+        for (const l of local) {
+          if (!ids.has(l.id)) {
+            logs.push({
+              ...l,
+              user_name: 'Admin',
+              user_email: 'admin@carepulse.local',
+              user_role: 'admin'
+            });
+          }
+        }
+      } catch (e) {}
+    }
+
+    return logs.slice(0, limit);
   },
 
   // ============================================================================
@@ -3839,7 +3919,8 @@ window.CarePulseDB = {
 
   async getHospitals(filters = {}) {
     const sb = getSupabaseClient();
-    const CORE_HOSPITALS = [
+    if (!this._coreHospitals) {
+      this._coreHospitals = [
       {
         id: 'c0000000-0000-0000-0000-000000000001',
         name: 'CarePulse Central Hospital',
@@ -3939,55 +4020,114 @@ window.CarePulseDB = {
         total_beds: 280,
         verification_status: 'approved',
         is_active: true
+      },
+      {
+        id: 'c0000000-0000-0000-0000-000000000005',
+        name: 'Sanjeevani Multispecialty Clinic & Nursing Home',
+        hospital_type: 'Day Clinic / Nursing Home',
+        registration_number: 'REG-MH-YTL-2024-991',
+        license_number: 'LIC-DHS-YTL-3301',
+        city_id: '10000000-0000-0000-0000-000000000004',
+        address: 'Dhamangaon Road, Near Datta Chowk, Yavatmal',
+        city_name: 'Yavatmal',
+        district_name: 'Yavatmal',
+        state_name: 'Maharashtra',
+        pincode: '445001',
+        latitude: 20.3920,
+        longitude: 78.1310,
+        email: 'info@sanjeevani-yavatmal.org',
+        phone: '+91 7232 240112',
+        emergency_phone: '+91 7232 240999',
+        website: 'https://sanjeevani-yavatmal.org',
+        logo_url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400',
+        cover_image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800',
+        facilities: ["Emergency 24x7", "General Ward", "Pathology Lab", "Pharmacy", "Minor OT"],
+        total_beds: 30,
+        verification_status: 'pending',
+        is_active: false
       }
-    ];
+      ];
+    }
+    const CORE_HOSPITALS = this._coreHospitals;
 
-    if (!sb) return CORE_HOSPITALS;
-
-    try {
-      let query = sb
-        .from('hospitals')
-        .select(`
-          *,
-          cities (
-            id,
-            state_name,
-            district_name,
-            city_name,
-            pincode,
-            latitude,
-            longitude
-          )
-        `);
-
-      if (!filters.includeUnapproved) {
-        query = query.eq('verification_status', 'approved').eq('is_active', true);
-      }
-      if (filters.cityId) {
-        query = query.eq('city_id', filters.cityId);
-      }
-      if (filters.hospitalType) {
-        query = query.eq('hospital_type', filters.hospitalType);
-      }
-
-      const { data, error } = await query.order('name', { ascending: true });
-
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map(h => ({
-          ...h,
-          city_name: h.cities?.city_name || h.district_name || 'Mumbai',
-          district_name: h.cities?.district_name || h.district_name || 'Mumbai',
-          state_name: h.cities?.state_name || h.state_name || 'Maharashtra',
-          pincode: h.cities?.pincode || h.pincode || '',
-          latitude: Number(h.latitude || h.cities?.latitude || 19.0760),
-          longitude: Number(h.longitude || h.cities?.longitude || 72.8777)
-        }));
-      }
-    } catch (e) {
-      console.warn('Supabase getHospitals note:', e.message);
+    let localHospitals = [];
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localHospitals = JSON.parse(localStorage.getItem('carepulse_local_hospitals') || '[]');
+      } catch (e) {}
     }
 
-    return CORE_HOSPITALS;
+    let all = [];
+    if (sb) {
+      try {
+        let query = sb
+          .from('hospitals')
+          .select(`
+            *,
+            cities (
+              id,
+              state_name,
+              district_name,
+              city_name,
+              pincode,
+              latitude,
+              longitude
+            )
+          `);
+
+        if (!filters.includeUnapproved) {
+          query = query.eq('verification_status', 'approved').eq('is_active', true);
+        }
+        if (filters.cityId) {
+          query = query.eq('city_id', filters.cityId);
+        }
+        if (filters.hospitalType) {
+          query = query.eq('hospital_type', filters.hospitalType);
+        }
+
+        const { data, error } = await query.order('name', { ascending: true });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          all = data.map(h => ({
+            ...h,
+            city_name: h.cities?.city_name || h.district_name || 'Mumbai',
+            district_name: h.cities?.district_name || h.district_name || 'Mumbai',
+            state_name: h.cities?.state_name || h.state_name || 'Maharashtra',
+            pincode: h.cities?.pincode || h.pincode || '',
+            latitude: Number(h.latitude || h.cities?.latitude || 19.0760),
+            longitude: Number(h.longitude || h.cities?.longitude || 72.8777)
+          }));
+        }
+      } catch (e) {
+        console.warn('Supabase getHospitals note:', e.message);
+      }
+    }
+
+    if (all.length === 0) {
+      all = [...CORE_HOSPITALS];
+    }
+
+    // Merge any locally registered hospitals not already present
+    const existingIds = new Set(all.map(h => h.id));
+    for (const lh of localHospitals) {
+      if (!existingIds.has(lh.id)) {
+        all.unshift(lh);
+        existingIds.add(lh.id);
+      }
+    }
+
+    // Filter by approval if not explicitly including unapproved
+    if (!filters.includeUnapproved) {
+      all = all.filter(h => (h.verification_status || 'approved') === 'approved' && h.is_active !== false);
+    }
+    if (filters.cityId) {
+      all = all.filter(h => h.city_id === filters.cityId);
+    }
+    if (filters.hospitalType) {
+      all = all.filter(h => h.hospital_type === filters.hospitalType);
+    }
+
+    return all;
   },
 
   async getHospitalById(id) {
@@ -4189,6 +4329,26 @@ window.CarePulseDB = {
       doc.is_verified = isVerified;
     }
 
+    if (this._coreDoctors) {
+      const coreDoc = this._coreDoctors.find(d => d.id === doctorId || d.profile_id === doctorId);
+      if (coreDoc) {
+        coreDoc.verification_status = decision;
+        coreDoc.is_verified = isVerified;
+      }
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('carepulse_local_doctors') || '[]');
+        const idx = stored.findIndex(d => d.id === doctorId || d.profile_id === doctorId);
+        if (idx >= 0) {
+          stored[idx].verification_status = decision;
+          stored[idx].is_verified = isVerified;
+          localStorage.setItem('carepulse_local_doctors', JSON.stringify(stored));
+        }
+      } catch (e) {}
+    }
+
     await this.logAuditEvent({
       action: `doctor_verification_${decision}`,
       entity_type: 'doctor',
@@ -4242,6 +4402,27 @@ window.CarePulseDB = {
     if (hosp) {
       hosp.verification_status = decision;
       hosp.is_active = isActive;
+    }
+
+    if (this._coreHospitals) {
+      const coreHosp = this._coreHospitals.find(h => h.id === hospitalId);
+      if (coreHosp) {
+        coreHosp.verification_status = decision;
+        coreHosp.is_active = isActive;
+      }
+    }
+
+    // Persist to local hospitals store
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('carepulse_local_hospitals') || '[]');
+        const idx = stored.findIndex(h => h.id === hospitalId);
+        if (idx >= 0) {
+          stored[idx].verification_status = decision;
+          stored[idx].is_active = isActive;
+          localStorage.setItem('carepulse_local_hospitals', JSON.stringify(stored));
+        }
+      } catch (e) {}
     }
 
     await this.logAuditEvent({
@@ -4315,6 +4496,14 @@ window.CarePulseDB = {
       } catch (e) {
         console.warn('registerHospital insert note:', e.message);
       }
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('carepulse_local_hospitals') || '[]');
+        stored.unshift(hospRecord);
+        localStorage.setItem('carepulse_local_hospitals', JSON.stringify(stored));
+      } catch (e) {}
     }
 
     return hospRecord;

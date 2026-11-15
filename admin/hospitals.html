@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Hospitals & Clinics - CarePulse Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-alert" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-5 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="hospitals.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="building" class="w-4 h-4"></i> Hospitals & Clinics</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="verification.html" class="hover:text-sky-400 flex items-center gap-1.5 transition relative">
+            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Verifications
+            <span id="nav-pending-badge" class="hidden px-1.5 py-0.5 bg-amber-500 text-slate-900 rounded-full text-[9px] font-black">!</span>
+          </a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW -->
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <!-- Page Header & Action Buttons -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3">
+          <span class="w-10 h-10 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center font-bold">
+            <i data-lucide="building-2" class="w-5 h-5"></i>
+          </span>
+          Hospitals & Healthcare Facilities Directory
+        </h1>
+        <p class="text-xs text-slate-500 mt-1">Manage establishment details, verify clinical establishment licenses, inspect ICU/bed capacity, and govern public search eligibility.</p>
+      </div>
+
+      <div class="flex items-center gap-2 self-start sm:self-auto">
+        <a href="verification.html?tab=hospitals" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Verification Center
+        </a>
+        <button onclick="window.AdminHospitals.openAddModal()" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Onboard Hospital / Clinic
+        </button>
+      </div>
+    </div>
+
+    <!-- 4 Summary KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <i data-lucide="building" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Facilities</span>
+          <div id="kpi-admin-total-hospitals" class="text-2xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <i data-lucide="check-circle" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Approved & Active</span>
+          <div id="kpi-admin-approved-hospitals" class="text-2xl font-black text-emerald-600">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+          <i data-lucide="clock" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pending Verification</span>
+          <div id="kpi-admin-pending-hospitals" class="text-2xl font-black text-amber-600">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+          <i data-lucide="bed-double" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Network Bed Capacity</span>
+          <div id="kpi-admin-total-beds" class="text-2xl font-black text-purple-700">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+      <div class="relative w-full md:w-80">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        <input type="text" id="admin-hosp-search" oninput="window.AdminHospitals.filter()" placeholder="Search name, license no, city..." class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <select id="admin-hosp-type-filter" onchange="window.AdminHospitals.filter()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Facility Types</option>
+          <option value="Super-specialty">Super-specialty Hospital</option>
+          <option value="Private Multi-specialty">Private Multi-specialty</option>
+          <option value="Government District Hospital">Government District Hospital</option>
+          <option value="Day Clinic / Nursing Home">Day Clinic / Nursing Home</option>
+        </select>
+
+        <select id="admin-hosp-city-filter" onchange="window.AdminHospitals.filter()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Cities</option>
+        </select>
+
+        <select id="admin-hosp-status-filter" onchange="window.AdminHospitals.filter()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Statuses</option>
+          <option value="approved">Approved & Active</option>
+          <option value="pending">Pending Verification</option>
+          <option value="under_review">Under Review</option>
+          <option value="suspended">Suspended</option>
+          <option value="rejected">Rejected</option>
+        </select>
+
+        <button onclick="window.AdminHospitals.refresh()" class="px-3 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Master Hospitals Table -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Hospital / Clinic & Type</th>
+              <th class="py-3.5 px-4">Establishment License</th>
+              <th class="py-3.5 px-4">Location (City, State)</th>
+              <th class="py-3.5 px-4">Beds & Accredited Facilities</th>
+              <th class="py-3.5 px-4">24x7 Emergency Contact</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-hospitals-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 1. VIEW COMPLETE HOSPITAL DETAILS MODAL -->
+  <div id="hospital-details-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-xl">
+            <i data-lucide="building-2" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 id="modal-hosp-name" class="font-black text-lg text-slate-900">Hospital Details</h3>
+            <span id="modal-hosp-subtitle" class="text-xs text-slate-500">Super-specialty Healthcare Facility</span>
+          </div>
+        </div>
+        <button type="button" onclick="window.AdminHospitals.closeModal('hospital-details-modal')" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Detail Sections -->
+      <div class="space-y-5 text-xs">
+        <!-- Status & License Banner -->
+        <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Verification Status</span>
+            <div id="modal-hosp-status-badge" class="mt-0.5"></div>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Establishment License No.</span>
+            <span id="modal-hosp-license" class="font-mono font-bold text-slate-900 text-sm"></span>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">State Registration No.</span>
+            <span id="modal-hosp-regno" class="font-mono font-bold text-slate-700"></span>
+          </div>
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Total Beds</span>
+            <span id="modal-hosp-beds" class="font-bold text-slate-900 text-sm"></span>
+          </div>
+        </div>
+
+        <!-- Location & Contact Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
+            <h4 class="font-bold text-slate-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5 text-sky-600">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Physical Address & Geolocation
+            </h4>
+            <div class="text-slate-700 space-y-1">
+              <div><strong>Street Address:</strong> <span id="modal-hosp-address"></span></div>
+              <div><strong>City / District:</strong> <span id="modal-hosp-city-district"></span></div>
+              <div><strong>State & PIN:</strong> <span id="modal-hosp-state-pin"></span></div>
+              <div><strong>GPS Coordinates:</strong> <span id="modal-hosp-coordinates" class="font-mono text-[11px] text-slate-500"></span></div>
+            </div>
+          </div>
+
+          <div class="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
+            <h4 class="font-bold text-slate-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5 text-emerald-600">
+              <i data-lucide="phone-call" class="w-3.5 h-3.5"></i> Contact & Emergency Hotlines
+            </h4>
+            <div class="text-slate-700 space-y-1">
+              <div><strong>24x7 Emergency Phone:</strong> <span id="modal-hosp-emergency" class="font-mono font-bold text-rose-600"></span></div>
+              <div><strong>Reception Phone:</strong> <span id="modal-hosp-phone" class="font-mono"></span></div>
+              <div><strong>Official Email:</strong> <span id="modal-hosp-email" class="text-sky-600"></span></div>
+              <div><strong>Website:</strong> <a id="modal-hosp-website" href="#" target="_blank" class="text-sky-600 hover:underline"></a></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Accredited Facilities Checklist -->
+        <div class="p-4 bg-white rounded-2xl border border-slate-200 space-y-2">
+          <h4 class="font-bold text-slate-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5 text-purple-600">
+            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Accredited Clinical Facilities Available
+          </h4>
+          <div id="modal-hosp-facilities-list" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Authorized Signatory & Management -->
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
+          <div>
+            <span class="text-[10px] uppercase font-bold text-slate-400 block">Authorized Signatory / Administrator</span>
+            <strong id="modal-hosp-auth-person" class="text-slate-900 text-sm"></strong>
+            <span id="modal-hosp-auth-desig" class="block text-slate-500 text-[11px]"></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="modal-hosp-direct-verify-btn" onclick="window.AdminHospitals.openVerifyForCurrentModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> Verification Decision
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end pt-3 border-t border-slate-100">
+        <button type="button" onclick="window.AdminHospitals.closeModal('hospital-details-modal')" class="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+          Close Details
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. QUICK VERIFICATION DECISION MODAL -->
+  <div id="hospital-verify-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="verify-modal-title" class="font-black text-base text-slate-900">Hospital Verification Decision</h3>
+            <span id="verify-modal-subtitle" class="text-xs text-slate-400">Clinical establishment governance</span>
+          </div>
+        </div>
+        <button type="button" onclick="window.AdminHospitals.closeModal('hospital-verify-modal')" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="hospital-verify-form" onsubmit="window.AdminHospitals.submitVerificationDecision(event)" class="space-y-4">
+        <input type="hidden" id="verify-hosp-id">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-2">Select Administrative Decision</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 font-bold text-xs cursor-pointer hover:bg-emerald-100 transition">
+              <input type="radio" name="hosp-decision" value="approved" checked class="text-emerald-600 focus:ring-emerald-500">
+              <span>Approve</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 font-bold text-xs cursor-pointer hover:bg-rose-100 transition">
+              <input type="radio" name="hosp-decision" value="rejected" class="text-rose-600 focus:ring-rose-500">
+              <span>Reject</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 font-bold text-xs cursor-pointer hover:bg-amber-100 transition">
+              <input type="radio" name="hosp-decision" value="under_review" class="text-amber-600 focus:ring-amber-500">
+              <span>In Review</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold text-xs cursor-pointer hover:bg-slate-100 transition">
+              <input type="radio" name="hosp-decision" value="suspended" class="text-slate-600 focus:ring-slate-500">
+              <span>Suspend</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            Decision Justification & Rationale <span class="text-rose-500">* (Mandatory for audit trail)</span>
+          </label>
+          <textarea id="verify-hosp-reason" required rows="3" placeholder="e.g., Clinical Establishment Act License verified with District Health Officer records..." class="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <div id="verify-modal-error" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold"></div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="window.AdminHospitals.closeModal('hospital-verify-modal')" class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" id="verify-modal-submit-btn" class="px-5 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md transition flex items-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Submit Decision
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. ONBOARD NEW HOSPITAL MODAL -->
+  <div id="add-hospital-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+            <i data-lucide="building-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-slate-900">Onboard New Hospital / Clinic</h3>
+            <span class="text-xs text-slate-400">Add an accredited healthcare facility to the network</span>
+          </div>
+        </div>
+        <button type="button" onclick="window.AdminHospitals.closeModal('add-hospital-modal')" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="onboard-hospital-form" onsubmit="window.AdminHospitals.saveHospitalForm(event)" class="space-y-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Hospital / Clinic Name *</label>
+            <input type="text" id="add-hosp-name" required placeholder="e.g. CarePulse Specialty Hospital" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Facility Type *</label>
+            <select id="add-hosp-type" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="Super-specialty">Super-specialty Hospital</option>
+              <option value="Private Multi-specialty" selected>Private Multi-specialty</option>
+              <option value="Government District Hospital">Government District Hospital</option>
+              <option value="Day Clinic / Nursing Home">Day Clinic / Nursing Home</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Establishment License No. *</label>
+            <input type="text" id="add-hosp-license" required placeholder="e.g. LIC-DHS-2024-8841" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Registration Number *</label>
+            <input type="text" id="add-hosp-regno" required placeholder="e.g. REG-MH-2024-1102" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">City *</label>
+            <select id="add-hosp-city" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Total Bed Capacity *</label>
+            <input type="number" id="add-hosp-beds" min="1" value="50" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">PIN Code *</label>
+            <input type="text" id="add-hosp-pin" placeholder="445001" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Complete Physical Street Address *</label>
+          <input type="text" id="add-hosp-address" required placeholder="Street address, landmark, area..." class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">24x7 Emergency Contact Phone *</label>
+            <input type="tel" id="add-hosp-emergency" required placeholder="+91 22 4910 9999" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">General Reception Phone</label>
+            <input type="tel" id="add-hosp-phone" placeholder="+91 22 4910 8000" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Official Hospital Email *</label>
+            <input type="email" id="add-hosp-email" required placeholder="contact@hospital.com" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Official Website</label>
+            <input type="url" id="add-hosp-website" placeholder="https://hospital.com" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">Accredited Clinical Facilities</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="ICU" checked class="rounded text-sky-600"> <span>ICU</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Emergency 24x7" checked class="rounded text-sky-600"> <span>Emergency 24x7</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Pharmacy" checked class="rounded text-sky-600"> <span>Pharmacy</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Laboratory" checked class="rounded text-sky-600"> <span>Laboratory</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Ambulance" checked class="rounded text-sky-600"> <span>Ambulance</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Blood Bank" class="rounded text-sky-600"> <span>Blood Bank</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Cardiac Cath Lab" class="rounded text-sky-600"> <span>Cardiac Cath Lab</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="MRI / CT Scan" class="rounded text-sky-600"> <span>MRI / CT Scan</span></label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="add-facility" value="Dialysis" class="rounded text-sky-600"> <span>Dialysis</span></label>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+          <input type="checkbox" id="add-hosp-auto-approve" checked class="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+          <label for="add-hosp-auto-approve" class="font-bold text-slate-800 cursor-pointer">
+            Mark as Pre-Verified & Approved (Immediately visible in public patient search)
+          </label>
+        </div>
+
+        <div id="add-hosp-error" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold"></div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="window.AdminHospitals.closeModal('add-hospital-modal')" class="px-4 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" id="add-hosp-submit-btn" class="px-5 py-2.5 font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md transition flex items-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Save & Register Facility
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Healthcare Network. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/location.js"></script>
+  <script src="../js/admin.js"></script>
+  <script>
+    window.AdminHospitals = {
+      hospitals: [],
+      cities: [],
+      currentHospital: null,
+
+      async init() {
+        window.Auth.requireAuth(['admin']);
+        await this.loadCities();
+        await this.refresh();
+      },
+
+      async loadCities() {
+        if (window.LocationService) {
+          this.cities = await window.LocationService.getCities();
+        } else if (window.CarePulseDB?.getCities) {
+          this.cities = await window.CarePulseDB.getCities();
+        }
+        const cityFilter = document.getElementById('admin-hosp-city-filter');
+        const modalCity = document.getElementById('add-hosp-city');
+        if (cityFilter && this.cities.length > 0) {
+          cityFilter.innerHTML = '<option value="all">All Cities</option>' + this.cities.map(c => `
+            <option value="${c.city_name}">${c.city_name} (${c.state_name})</option>
+          `).join('');
+        }
+        if (modalCity && this.cities.length > 0) {
+          modalCity.innerHTML = this.cities.map(c => `
+            <option value="${c.id}" data-name="${c.city_name}" data-district="${c.district_name}" data-state="${c.state_name}" data-pin="${c.pincode}">${c.city_name} (${c.state_name})</option>
+          `).join('');
+        }
+      },
+
+      async refresh() {
+        this.hospitals = await window.CarePulseDB.getHospitals({ includeUnapproved: true });
+        this.updateKPIs();
+        this.filter();
+      },
+
+      updateKPIs() {
+        const total = this.hospitals.length;
+        const approved = this.hospitals.filter(h => (h.verification_status || 'approved') === 'approved').length;
+        const pending = this.hospitals.filter(h => h.verification_status === 'pending' || h.verification_status === 'under_review').length;
+        const totalBeds = this.hospitals.reduce((sum, h) => sum + (parseInt(h.total_beds, 10) || 0), 0);
+
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.innerText = val;
+        };
+
+        setVal('kpi-admin-total-hospitals', total);
+        setVal('kpi-admin-approved-hospitals', approved);
+        setVal('kpi-admin-pending-hospitals', pending);
+        setVal('kpi-admin-total-beds', totalBeds.toLocaleString());
+
+        const navBadge = document.getElementById('nav-pending-badge');
+        if (navBadge) {
+          if (pending > 0) {
+            navBadge.classList.remove('hidden');
+            navBadge.innerText = pending;
+          } else {
+            navBadge.classList.add('hidden');
+          }
+        }
+      },
+
+      filter() {
+        const q = (document.getElementById('admin-hosp-search')?.value || '').toLowerCase().trim();
+        const typeFilter = document.getElementById('admin-hosp-type-filter')?.value || 'all';
+        const cityFilter = document.getElementById('admin-hosp-city-filter')?.value || 'all';
+        const statusFilter = document.getElementById('admin-hosp-status-filter')?.value || 'all';
+
+        const filtered = this.hospitals.filter(h => {
+          const st = h.verification_status || 'approved';
+          const matchesStatus = (statusFilter === 'all') || (st === statusFilter);
+          const matchesType = (typeFilter === 'all') || (h.hospital_type === typeFilter);
+          const matchesCity = (cityFilter === 'all') || (h.city_name === cityFilter) || (h.district_name === cityFilter);
+          const matchesQuery = !q ||
+            (h.name && h.name.toLowerCase().includes(q)) ||
+            (h.license_number && h.license_number.toLowerCase().includes(q)) ||
+            (h.registration_number && h.registration_number.toLowerCase().includes(q)) ||
+            (h.city_name && h.city_name.toLowerCase().includes(q)) ||
+            (h.address && h.address.toLowerCase().includes(q));
+
+          return matchesStatus && matchesType && matchesCity && matchesQuery;
+        });
+
+        this.renderTable(filtered);
+      },
+
+      renderTable(list) {
+        const tbody = document.getElementById('admin-hospitals-table-body');
+        if (!tbody) return;
+
+        if (list.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-400 font-semibold">No hospitals or clinics found matching the selected filters.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = list.map(h => {
+          const st = h.verification_status || 'approved';
+          const badge = this.getStatusBadge(st);
+          const facilities = Array.isArray(h.facilities) ? h.facilities.slice(0, 3).join(', ') : 'ICU, Emergency';
+          const emergencyPhone = h.emergency_phone || h.phone || '24x7 Hotline Available';
+
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-3.5 px-4">
+                <div class="flex items-center gap-3">
+                  <img src="${h.logo_url || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200">
+                  <div>
+                    <span class="font-bold text-slate-900 block text-xs">${h.name}</span>
+                    <span class="text-[11px] text-slate-500 font-medium">${h.hospital_type || 'Multi-specialty'}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="py-3.5 px-4 font-mono text-[11px]">
+                <div class="font-bold text-slate-800">${h.license_number || 'LIC-PENDING'}</div>
+                <div class="text-[10px] text-slate-400">${h.registration_number || 'REG-PENDING'}</div>
+              </td>
+              <td class="py-3.5 px-4 text-slate-700">
+                <div class="font-bold">${h.city_name || h.district_name || 'Mumbai'}</div>
+                <div class="text-[10px] text-slate-500 truncate max-w-[180px]" title="${h.address || ''}">${h.address || h.state_name || 'Maharashtra'}</div>
+              </td>
+              <td class="py-3.5 px-4 text-[11px] text-slate-600">
+                <div class="font-bold text-purple-700">${h.total_beds || 50} Beds</div>
+                <div class="text-[10px] text-slate-400 truncate max-w-[170px]" title="${facilities}">${facilities}</div>
+              </td>
+              <td class="py-3.5 px-4 font-mono text-[11px]">
+                <div class="font-bold text-rose-600">${emergencyPhone}</div>
+                <div class="text-[10px] text-slate-400">${h.email || 'contact@hospital.com'}</div>
+              </td>
+              <td class="py-3.5 px-4">
+                ${badge}
+              </td>
+              <td class="py-3.5 px-4 text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                  <button onclick="window.AdminHospitals.viewDetails('${h.id}')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs transition" title="View Full Profile">
+                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button onclick="window.AdminHospitals.openVerifyModal('${h.id}')" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg font-bold text-xs transition flex items-center gap-1">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Verify
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      getStatusBadge(status) {
+        switch (status) {
+          case 'approved':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Approved & Active</span>`;
+          case 'pending':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending Review</span>`;
+          case 'under_review':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">Under Review</span>`;
+          case 'suspended':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">Suspended</span>`;
+          case 'rejected':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>`;
+          default:
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Approved</span>`;
+        }
+      },
+
+      viewDetails(id) {
+        const hosp = this.hospitals.find(h => h.id === id);
+        if (!hosp) return;
+        this.currentHospital = hosp;
+
+        document.getElementById('modal-hosp-name').innerText = hosp.name;
+        document.getElementById('modal-hosp-subtitle').innerText = `${hosp.hospital_type || 'Healthcare Facility'} • Established & Registered`;
+        document.getElementById('modal-hosp-status-badge').innerHTML = this.getStatusBadge(hosp.verification_status || 'approved');
+        document.getElementById('modal-hosp-license').innerText = hosp.license_number || 'LIC-PENDING';
+        document.getElementById('modal-hosp-regno').innerText = hosp.registration_number || 'REG-PENDING';
+        document.getElementById('modal-hosp-beds').innerText = `${hosp.total_beds || 50} Operational Beds`;
+
+        document.getElementById('modal-hosp-address').innerText = hosp.address || 'Central Boulevard';
+        document.getElementById('modal-hosp-city-district').innerText = `${hosp.city_name || hosp.district_name || 'Mumbai'}, ${hosp.district_name || hosp.city_name || 'Mumbai'}`;
+        document.getElementById('modal-hosp-state-pin').innerText = `${hosp.state_name || 'Maharashtra'} - ${hosp.pincode || '400001'}`;
+        document.getElementById('modal-hosp-coordinates').innerText = `${hosp.latitude || 19.0760}, ${hosp.longitude || 72.8777}`;
+
+        document.getElementById('modal-hosp-emergency').innerText = hosp.emergency_phone || hosp.phone || 'Not configured';
+        document.getElementById('modal-hosp-phone').innerText = hosp.phone || '+91 22 4910 8000';
+        document.getElementById('modal-hosp-email').innerText = hosp.email || 'contact@hospital.com';
+        const webLink = document.getElementById('modal-hosp-website');
+        if (hosp.website) {
+          webLink.href = hosp.website;
+          webLink.innerText = hosp.website;
+        } else {
+          webLink.innerText = 'Not specified';
+          webLink.removeAttribute('href');
+        }
+
+        // Facilities checklist
+        const facList = document.getElementById('modal-hosp-facilities-list');
+        const standardFacilities = ["ICU", "Emergency 24x7", "Pharmacy", "Laboratory", "Ambulance", "Blood Bank", "Cardiac Cath Lab", "MRI / CT Scan", "Dialysis", "Pediatrics"];
+        const hospFacilities = Array.isArray(hosp.facilities) ? hosp.facilities : standardFacilities.slice(0, 4);
+
+        facList.innerHTML = standardFacilities.map(f => {
+          const available = hospFacilities.some(hf => hf.toLowerCase().includes(f.toLowerCase()));
+          return `
+            <div class="flex items-center gap-1.5 p-2 rounded-xl ${available ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold' : 'bg-slate-50 text-slate-400 opacity-60'}">
+              <i data-lucide="${available ? 'check' : 'x'}" class="w-3.5 h-3.5 ${available ? 'text-emerald-600' : 'text-slate-400'}"></i>
+              <span class="text-[11px]">${f}</span>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('modal-hosp-auth-person').innerText = hosp.authorized_person_name || 'Authorized Medical Superintendent';
+        document.getElementById('modal-hosp-auth-desig').innerText = hosp.authorized_person_designation || 'Head Administrator & Chief Medical Officer';
+
+        this.openModal('hospital-details-modal');
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      openVerifyModal(id) {
+        const hosp = this.hospitals.find(h => h.id === id);
+        if (!hosp) return;
+        this.currentHospital = hosp;
+
+        document.getElementById('verify-hosp-id').value = hosp.id;
+        document.getElementById('verify-modal-title').innerText = `Verify: ${hosp.name}`;
+        document.getElementById('verify-modal-subtitle').innerText = `License: ${hosp.license_number || 'Pending'} • City: ${hosp.city_name || 'Mumbai'}`;
+        document.getElementById('verify-hosp-reason').value = '';
+        document.getElementById('verify-modal-error').classList.add('hidden');
+
+        // Select current decision
+        const currentStatus = hosp.verification_status || 'approved';
+        const radio = document.querySelector(`input[name="hosp-decision"][value="${currentStatus}"]`) || document.querySelector('input[name="hosp-decision"][value="approved"]');
+        if (radio) radio.checked = true;
+
+        this.openModal('hospital-verify-modal');
+      },
+
+      openVerifyForCurrentModal() {
+        if (!this.currentHospital) return;
+        this.closeModal('hospital-details-modal');
+        this.openVerifyModal(this.currentHospital.id);
+      },
+
+      async submitVerificationDecision(e) {
+        e.preventDefault();
+        const errBox = document.getElementById('verify-modal-error');
+        errBox.classList.add('hidden');
+
+        const hospitalId = document.getElementById('verify-hosp-id').value;
+        const decision = document.querySelector('input[name="hosp-decision"]:checked')?.value || 'approved';
+        const reason = document.getElementById('verify-hosp-reason').value.trim();
+
+        if (!reason) {
+          errBox.innerText = 'Mandatory justification reason is required for administrative audit.';
+          errBox.classList.remove('hidden');
+          return;
+        }
+
+        const user = window.Auth.getCurrentUser();
+        const adminId = user?.id || 'a0000000-0000-0000-0000-000000000001';
+
+        const btn = document.getElementById('verify-modal-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Submitting...`;
+        if (window.lucide) window.lucide.createIcons();
+
+        try {
+          await window.CarePulseDB.verifyHospital({
+            hospitalId,
+            adminId,
+            decision,
+            reason
+          });
+
+          this.closeModal('hospital-verify-modal');
+          await this.refresh();
+          if (window.showToast) window.showToast(`Hospital marked as ${decision.toUpperCase()} successfully!`, 'success');
+        } catch (err) {
+          errBox.innerText = err.message || 'Failed to submit verification decision.';
+          errBox.classList.remove('hidden');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Submit Decision`;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      },
+
+      openAddModal() {
+        document.getElementById('onboard-hospital-form').reset();
+        document.getElementById('add-hosp-error').classList.add('hidden');
+        this.openModal('add-hospital-modal');
+      },
+
+      async saveHospitalForm(e) {
+        e.preventDefault();
+        const errBox = document.getElementById('add-hosp-error');
+        errBox.classList.add('hidden');
+
+        const name = document.getElementById('add-hosp-name').value.trim();
+        const hospital_type = document.getElementById('add-hosp-type').value;
+        const license_number = document.getElementById('add-hosp-license').value.trim();
+        const registration_number = document.getElementById('add-hosp-regno').value.trim();
+        const citySelect = document.getElementById('add-hosp-city');
+        const city_id = citySelect.value;
+        const selectedOpt = citySelect.options[citySelect.selectedIndex];
+        const city_name = selectedOpt ? selectedOpt.getAttribute('data-name') : 'Mumbai';
+        const district_name = selectedOpt ? selectedOpt.getAttribute('data-district') : 'Mumbai';
+        const state_name = selectedOpt ? selectedOpt.getAttribute('data-state') : 'Maharashtra';
+        const pincode = document.getElementById('add-hosp-pin').value.trim();
+        const address = document.getElementById('add-hosp-address').value.trim();
+        const emergency_phone = document.getElementById('add-hosp-emergency').value.trim();
+        const phone = document.getElementById('add-hosp-phone').value.trim();
+        const email = document.getElementById('add-hosp-email').value.trim();
+        const website = document.getElementById('add-hosp-website').value.trim();
+        const total_beds = parseInt(document.getElementById('add-hosp-beds').value, 10) || 50;
+        const autoApprove = document.getElementById('add-hosp-auto-approve').checked;
+
+        const facilities = [];
+        document.querySelectorAll('input[name="add-facility"]:checked').forEach(cb => {
+          facilities.push(cb.value);
+        });
+
+        const btn = document.getElementById('add-hosp-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Saving...`;
+        if (window.lucide) window.lucide.createIcons();
+
+        try {
+          const hospRecord = await window.CarePulseDB.registerHospital({
+            name,
+            hospital_type,
+            license_number,
+            registration_number,
+            city_id,
+            city_name,
+            district_name,
+            state_name,
+            pincode,
+            address,
+            emergency_phone,
+            phone,
+            email,
+            website,
+            total_beds,
+            facilities,
+            authorized_person_name: 'Administrative Representative',
+            authorized_person_designation: 'Medical Superintendent'
+          });
+
+          if (autoApprove && hospRecord) {
+            const user = window.Auth.getCurrentUser();
+            await window.CarePulseDB.verifyHospital({
+              hospitalId: hospRecord.id,
+              adminId: user?.id || 'a0000000-0000-0000-0000-000000000001',
+              decision: 'approved',
+              reason: 'Administrative direct onboard and verification.'
+            });
+          }
+
+          this.closeModal('add-hospital-modal');
+          await this.refresh();
+          if (window.showToast) window.showToast(`Facility "${name}" onboarded successfully!`, 'success');
+        } catch (err) {
+          errBox.innerText = err.message || 'Failed to onboard hospital.';
+          errBox.classList.remove('hidden');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Save & Register Facility`;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      },
+
+      openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+          modal.classList.remove('hidden');
+          if (window.lucide) window.lucide.createIcons();
+        }
+      },
+
+      closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.classList.add('hidden');
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.AdminHospitals.init();
+    });
+  </script>
+</body>
+</html>
