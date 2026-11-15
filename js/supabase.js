@@ -4260,6 +4260,7 @@ window.CarePulseDB = {
   },
 
   async registerHospital({
+    profile_id,
     name,
     hospital_type = 'Private Multi-specialty',
     email,
@@ -4285,6 +4286,7 @@ window.CarePulseDB = {
 
     const hospRecord = {
       id: newHospitalId,
+      profile_id: profile_id || null,
       name,
       hospital_type,
       email: email || '',

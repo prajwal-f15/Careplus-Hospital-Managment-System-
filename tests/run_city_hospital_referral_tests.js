@@ -25,6 +25,7 @@ const suites = [
   { name: 'Phase 5: Cross-City Referral System (Yavatmal ↔ Mumbai)', script: 'test_cross_city_referral_system.js' },
   { name: 'Phase 6 & 7: Appointment Integration, Teleconsultation & Security', script: 'test_appointment_referral_integration.js' },
   { name: 'Phase 8: Clinical Departments Directory & Specialist Allocation', script: 'test_clinical_departments.js' },
+  { name: 'Phase 9: Hospital Registration & Auth Error Guard', script: 'test_hospital_registration_auth.js' },
   { name: 'Mobile Responsiveness & Viewport Audit (41 HTML Pages)', script: 'audit_mobile_responsive.js' }
 ];
 

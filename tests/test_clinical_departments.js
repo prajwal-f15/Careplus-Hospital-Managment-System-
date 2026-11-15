@@ -153,3 +153,4 @@ runClinicalDepartmentTests().catch(err => {
   console.error('Fatal test error:', err);
   process.exit(1);
 });
+

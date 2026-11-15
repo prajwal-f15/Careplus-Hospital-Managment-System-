@@ -114,6 +114,9 @@ window.Auth = {
       case 'admin':
         window.location.href = `${prefix}admin/index.html`;
         break;
+      case 'hospital':
+        window.location.href = `${prefix}hospitals.html`;
+        break;
       default:
         window.location.href = `${prefix}index.html`;
     }
@@ -343,14 +346,33 @@ window.Auth = {
       }
     }
 
+    // Attach hospital record if hospital
+    let hospitalData = null;
+    const isHospitalAccount = profile.role === 'hospital' || 
+                              authUser.user_metadata?.account_type === 'hospital' ||
+                              authUser.user_metadata?.actual_role === 'hospital';
+    if (isHospitalAccount) {
+      try {
+        const { data: hosp } = await sb
+          .from('hospitals')
+          .select('*')
+          .eq('profile_id', profile.id)
+          .maybeSingle();
+        hospitalData = hosp;
+      } catch (e) {
+        console.warn('Hospital record fetch note:', e);
+      }
+    }
+
     const sessionUser = {
       id: profile.id,
       profile_id: profile.id,
       doctor_id: doctorData ? doctorData.id : null,
+      hospital_id: hospitalData ? hospitalData.id : null,
       full_name: profile.full_name,
       email: profile.email,
       phone: profile.phone,
-      role: profile.role,
+      role: isHospitalAccount ? 'hospital' : profile.role,
       gender: profile.gender,
       profile_image: profile.profile_image || (profile.role === 'doctor' 
         ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400'
@@ -360,6 +382,7 @@ window.Auth = {
       address: profile.address,
       specialization: doctorData ? doctorData.specialization : null,
       department_name: doctorData ? doctorData.departments?.name : null,
+      hospital_name: hospitalData ? hospitalData.name : null,
       logged_in_at: new Date().toISOString()
     };
 
@@ -461,6 +484,14 @@ window.Auth = {
     }
 
     // 1. Supabase Auth Sign Up
+    // Database trigger handle_new_user() runs on auth.users insert.
+    // In PostgreSQL, profiles_role_check may enforce CHECK (role IN ('patient', 'doctor', 'admin')).
+    // If 'hospital' is passed to signUp, it violates profiles_role_check and returns 500 "Database error saving new user".
+    // We send 'patient' to auth.signUp to guarantee auth.users and profile creation succeed unconditionally,
+    // and store account_type: 'hospital' in user_metadata.
+    const isHospitalRole = (role === 'hospital' || role === 'hospital_admin');
+    const authMetadataRole = isHospitalRole ? 'patient' : role;
+
     const { data: authData, error: authError } = await sb.auth.signUp({
       email: cleanEmail,
       password: password,
@@ -468,7 +499,9 @@ window.Auth = {
         data: {
           full_name,
           phone,
-          role,
+          role: authMetadataRole,
+          account_type: isHospitalRole ? 'hospital' : role,
+          actual_role: role,
           gender: gender || 'Other',
           specialization: specialization || 'Medical Specialist',
           qualification: qualification || 'MBBS, MD',
@@ -486,7 +519,7 @@ window.Auth = {
     // 2. Ensure profile exists in 'profiles' table
     let profile = null;
     try {
-      const { data: profData } = await sb
+      const { data: profData, error: profErr } = await sb
         .from('profiles')
         .upsert({
           id: user.id,
@@ -494,11 +527,31 @@ window.Auth = {
           email: cleanEmail,
           phone: phone || '',
           role: role,
-          gender: gender || 'Other'
+          gender: gender || 'Other',
+          address: primary_address || address || ''
         })
         .select()
         .single();
-      profile = profData;
+      
+      if (profErr && isHospitalRole) {
+        // Fallback if profiles table check constraint only permits patient/doctor/admin
+        const { data: fallbackProf } = await sb
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            full_name,
+            email: cleanEmail,
+            phone: phone || '',
+            role: 'patient',
+            gender: gender || 'Other',
+            address: primary_address || address || ''
+          })
+          .select()
+          .single();
+        profile = fallbackProf;
+      } else {
+        profile = profData;
+      }
     } catch (profErr) {
       console.warn('Profile upsert note:', profErr);
     }
@@ -527,15 +580,21 @@ window.Auth = {
       } catch (docErr) {
         console.warn('Doctor table insert note:', docErr);
       }
-    } else if (role === 'hospital' || role === 'hospital_admin') {
+    } else if (isHospitalRole) {
       try {
         await window.CarePulseDB.registerHospital({
+          profile_id: user.id,
           name: hospital_name || full_name,
           hospital_type: hospital_type || 'Private Multi-specialty',
           email: cleanEmail,
           phone: phone || '',
+          emergency_phone: payload.emergency_phone || phone || '',
           address: primary_address || address || 'Central Boulevard',
           city_id: city_id || null,
+          city_name: payload.city_name || '',
+          district_name: payload.district_name || '',
+          state_name: payload.state_name || '',
+          pincode: payload.pincode || '',
           license_number: license_number || '',
           registration_number: medical_registration_number || '',
           facilities: facilities || ["ICU", "Emergency 24x7", "Pharmacy", "Laboratory"],

@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS public.cities (
 CREATE INDEX IF NOT EXISTS idx_cities_search ON public.cities(state_name, district_name, city_name);
 CREATE INDEX IF NOT EXISTS idx_cities_coords ON public.cities(latitude, longitude) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
+-- 2B. EXTEND PROFILES ROLE TO INCLUDE HOSPITAL
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('patient', 'doctor', 'admin', 'hospital'));
+
 -- ==============================================================================
 -- 3. HOSPITALS DIRECTORY & INDEPENDENT REGISTRATION (MODULE 3)
 -- ==============================================================================
