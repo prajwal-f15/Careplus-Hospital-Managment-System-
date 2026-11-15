@@ -28,7 +28,8 @@
 
         <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
           <a href="index.html" class="hover:text-sky-600 transition">Home</a>
-          <a href="doctors.html" class="text-sky-600">Find Doctors</a>
+          <a href="doctors.html" class="text-sky-600 font-bold">Find Doctors</a>
+          <a href="hospitals.html" class="hover:text-sky-600 transition">Hospitals</a>
           <a href="departments.html" class="hover:text-sky-600 transition">Departments</a>
           <a href="about.html" class="hover:text-sky-600 transition">About Us</a>
           <a href="contact.html" class="hover:text-sky-600 transition">Contact</a>
@@ -39,26 +40,103 @@
     </div>
   </header>
 
-  <main class="flex-grow py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-    <!-- Header banner -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-black text-slate-900">Medical Specialists Directory</h1>
-      <p class="text-sm text-slate-500 mt-1">Search certified consultants, check real-time availability, and book an appointment with digital tokens.</p>
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+    <!-- Header banner & Location Discovery Bar (Module 1) -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">All-India Medical Specialists Directory</h1>
+        <p class="text-xs text-slate-500 mt-1">Discover certified medical consultants by city, specialization, consultation mode, or nearby distance.</p>
+      </div>
+
+      <!-- Quick Location Badge & Switcher -->
+      <div class="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-200 shadow-sm self-start md:self-auto">
+        <div class="flex items-center gap-2">
+          <i data-lucide="map-pin" class="w-4 h-4 text-sky-600"></i>
+          <div>
+            <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Active Location</span>
+            <span id="active-location-label" class="text-xs font-black text-slate-800">All India</span>
+          </div>
+        </div>
+        <div class="h-6 w-px bg-slate-200 mx-1"></div>
+        <button type="button" id="btn-use-geolocation" title="Use my GPS location" class="px-2.5 py-1.5 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 transition flex items-center gap-1">
+          <i data-lucide="crosshair" class="w-3.5 h-3.5"></i> Near Me
+        </button>
+        <button type="button" id="btn-open-location-modal" class="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-sm transition flex items-center gap-1">
+          Change
+        </button>
+        <button type="button" id="btn-reset-location" class="hidden px-2 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition" title="Reset to All India">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Segmented Discovery Switcher (Module 5) -->
+    <div class="flex items-center gap-2 mb-6 p-1.5 bg-slate-200/70 rounded-2xl w-fit">
+      <span class="px-5 py-2 rounded-xl text-xs font-bold bg-white text-slate-900 shadow-sm flex items-center gap-2">
+        <i data-lucide="stethoscope" class="w-4 h-4 text-sky-600"></i> Specialist Doctors
+      </span>
+      <a href="hospitals.html" class="px-5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center gap-2">
+        <i data-lucide="building-2" class="w-4 h-4"></i> Hospitals & Centers
+      </a>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
       <!-- Sidebar Filters -->
       <div class="space-y-6">
         <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+          <!-- Text Search -->
           <div>
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Search Specialist</h3>
             <div class="relative">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
-              <input type="text" id="doctor-search-input" placeholder="Name or condition..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <input type="text" id="doctor-search-input" placeholder="Doctor name, disease..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
             </div>
           </div>
 
-          <div>
+          <!-- State & City Location Filters (Module 1) -->
+          <div class="space-y-3 pt-3 border-t border-slate-100">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">City & Location</h3>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">State</label>
+              <select id="state-filter" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <option value="all">All States (India)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">City / District</label>
+              <select id="city-filter" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <option value="all">All Cities</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Distance Radius Filter (Module 1) -->
+          <div id="distance-filter-container" class="space-y-2 pt-3 border-t border-slate-100">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Nearby Distance</h3>
+              <span id="radius-val-display" class="text-xs font-bold text-sky-600">All India</span>
+            </div>
+            <select id="radius-filter" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white">
+              <option value="0">Nationwide (No Limit)</option>
+              <option value="10">Within 10 km</option>
+              <option value="25">Within 25 km</option>
+              <option value="50">Within 50 km</option>
+              <option value="100">Within 100 km</option>
+            </select>
+          </div>
+
+          <!-- Consultation Mode Filter (Module 2 & 5) -->
+          <div class="space-y-2 pt-3 border-t border-slate-100">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Consultation Mode</h3>
+            <select id="mode-filter" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white">
+              <option value="all">All Modes (In-Person & Video)</option>
+              <option value="in_person">🏥 In-Person Clinic Visit</option>
+              <option value="video">📹 Online Video Consultation</option>
+            </select>
+          </div>
+
+          <!-- Experience Filter -->
+          <div class="pt-3 border-t border-slate-100">
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Minimum Experience</h3>
             <select id="experience-filter" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white">
               <option value="0">All Experience Levels</option>
@@ -68,28 +146,33 @@
             </select>
           </div>
 
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Departments</h3>
+          <!-- Departments Filter -->
+          <div class="pt-3 border-t border-slate-100">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Medical Departments</h3>
             <div id="department-filter-options" class="space-y-1">
               <!-- Rendered by doctors.js -->
             </div>
           </div>
         </div>
 
-        <!-- Emergency Widget -->
-        <div class="bg-rose-50 border border-rose-200 p-6 rounded-3xl text-xs text-rose-800 space-y-2">
-          <div class="flex items-center gap-2 font-bold text-rose-900">
-            <i data-lucide="phone" class="w-4 h-4"></i> Emergency Triage
+        <!-- Emergency & Referral Help Widget -->
+        <div class="bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-100 p-6 rounded-3xl text-xs space-y-3">
+          <div class="flex items-center gap-2 font-black text-sky-900 text-sm">
+            <i data-lucide="git-pull-request" class="w-4 h-4 text-sky-600"></i> Cross-City Referral
           </div>
-          <p>For urgent critical conditions requiring immediate trauma care, please proceed directly to ER.</p>
-          <a href="tel:5559992273" class="font-bold text-rose-700 block mt-2 hover:underline">Call +1 (555) 999-CARE</a>
+          <p class="text-slate-600 leading-relaxed">
+            Need a specialist in another city (e.g. Mumbai) but unable to travel? Use our <strong>Find Local Doctor</strong> button on any doctor's profile to discover local care in Yavatmal or nearby centers.
+          </p>
         </div>
       </div>
 
       <!-- Main Doctors Grid -->
       <div class="lg:col-span-3 space-y-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <span id="doctors-count-display" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Loading specialists...</span>
+          <div id="location-active-badge-pill" class="text-xs font-semibold text-slate-500">
+            Showing verified doctors across <span class="text-sky-600 font-bold">India</span>
+          </div>
         </div>
 
         <div id="doctors-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -98,12 +181,67 @@
 
         <div id="doctors-empty-state" class="hidden bg-white rounded-3xl p-12 border border-slate-200 text-center">
           <i data-lucide="user-x" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
-          <h3 class="text-base font-bold text-slate-800">No Doctors Found</h3>
-          <p class="text-xs text-slate-400 mt-1">Try adjusting your filters or search keywords.</p>
+          <h3 class="text-base font-bold text-slate-800">No Doctors Found in This Location</h3>
+          <p class="text-xs text-slate-400 mt-1">Try expanding your nearby radius, selecting another city, or switching to online video consultation.</p>
+          <button onclick="window.DoctorDirectory.resetLocation()" class="mt-4 px-4 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold hover:bg-sky-700 transition">
+            View All India Doctors
+          </button>
         </div>
       </div>
     </div>
   </main>
+
+  <!-- LOCATION PICKER MODAL (Module 1) -->
+  <div id="location-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+            <i data-lucide="map-pin" class="w-4 h-4"></i>
+          </div>
+          <h3 class="font-black text-sm text-slate-900">Select Discovery City</h3>
+        </div>
+        <button type="button" onclick="window.DoctorDirectory.closeLocationModal()" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-500">
+        Choose your preferred consultation city or search nearby doctors without changing your registered home address.
+      </p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">State</label>
+          <select id="modal-state-select" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">Select State</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">City / District</label>
+          <select id="modal-city-select" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">Select City</option>
+          </select>
+        </div>
+
+        <div class="pt-2">
+          <button type="button" onclick="window.DoctorDirectory.useDeviceGeolocation()" class="w-full py-2.5 px-4 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-bold border border-sky-100 transition flex items-center justify-center gap-2">
+            <i data-lucide="crosshair" class="w-4 h-4"></i> Use My Current Location (GPS)
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <button type="button" onclick="window.DoctorDirectory.resetLocation()" class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+          Reset to All India
+        </button>
+        <button type="button" onclick="window.DoctorDirectory.applyModalLocation()" class="px-5 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md shadow-sky-600/20 transition">
+          Apply Location
+        </button>
+      </div>
+    </div>
+  </div>
 
   <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-400">
     &copy; 2026 CarePulse Central Hospital. All rights reserved.
@@ -112,6 +250,7 @@
   <script src="js/config.js"></script>
   <script src="js/supabase.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/location.js"></script>
   <script src="js/doctors.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {

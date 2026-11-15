@@ -425,8 +425,34 @@ window.Auth = {
     }
   },
 
-  // Real Supabase User Registration (Patient or Doctor)
-  async register({ full_name, email, phone, role = 'patient', password, gender, specialization, department_id, qualification, experience_years }) {
+  // Real Supabase User Registration (Patient, Doctor, or Hospital)
+  async register(payload) {
+    const {
+      full_name,
+      email,
+      phone,
+      role = 'patient',
+      password,
+      gender,
+      specialization,
+      department_id,
+      qualification,
+      experience_years,
+      medical_registration_number,
+      medical_council_name,
+      registration_year,
+      consultation_modes,
+      consultation_fee,
+      city_id,
+      primary_address,
+      hospital_name,
+      hospital_type,
+      license_number,
+      facilities,
+      total_beds,
+      address
+    } = payload;
+
     const sb = window.CarePulseDB.getClient();
     const cleanEmail = email.trim().toLowerCase();
 
@@ -477,21 +503,48 @@ window.Auth = {
       console.warn('Profile upsert note:', profErr);
     }
 
-    // 3. If Doctor, register record in doctors table
+    // 3. If Doctor, register record in doctors table with verification_status = 'pending'
     if (role === 'doctor') {
       try {
+        const isApproved = payload.is_verified === true || payload.verification_status === 'approved';
         await sb.from('doctors').upsert({
           profile_id: user.id,
           department_id: department_id || null,
           specialization: specialization || 'Medical Specialist',
           qualification: qualification || 'MBBS, MD',
           experience_years: parseInt(experience_years, 10) || 5,
-          consultation_fee: 50.00,
-          is_verified: true,
+          consultation_fee: parseFloat(consultation_fee) || 50.00,
+          medical_registration_number: medical_registration_number || 'MMC-PENDING',
+          medical_council_name: medical_council_name || 'State Medical Council',
+          registration_year: parseInt(registration_year, 10) || new Date().getFullYear(),
+          consultation_modes: consultation_modes || 'both',
+          city_id: city_id || null,
+          primary_address: primary_address || address || '',
+          verification_status: isApproved ? 'approved' : 'pending',
+          is_verified: isApproved,
           is_available_today: true
         }, { onConflict: 'profile_id' });
       } catch (docErr) {
         console.warn('Doctor table insert note:', docErr);
+      }
+    } else if (role === 'hospital' || role === 'hospital_admin') {
+      try {
+        await window.CarePulseDB.registerHospital({
+          name: hospital_name || full_name,
+          hospital_type: hospital_type || 'Private Multi-specialty',
+          email: cleanEmail,
+          phone: phone || '',
+          address: primary_address || address || 'Central Boulevard',
+          city_id: city_id || null,
+          license_number: license_number || '',
+          registration_number: medical_registration_number || '',
+          facilities: facilities || ["ICU", "Emergency 24x7", "Pharmacy", "Laboratory"],
+          total_beds: total_beds || 50,
+          authorized_person_name: full_name,
+          authorized_person_designation: 'Authorized Representative'
+        });
+      } catch (hospErr) {
+        console.warn('Hospital insert note:', hospErr);
       }
     }
 

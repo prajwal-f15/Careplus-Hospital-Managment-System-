@@ -46,6 +46,71 @@
     </div>
   </main>
 
+  <!-- REFERRAL & LOCAL DOCTOR FINDER MODAL (MODULE 6) -->
+  <div id="referral-finder-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-6">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
+            <i data-lucide="git-pull-request" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-slate-900">Find Local Doctor / Cross-City Referral</h3>
+            <p class="text-xs text-slate-500">Cross-City Medical Referral Network (Module 6)</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-referral-modal" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Description & City Selector -->
+      <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Need a specialist in your hometown or cannot travel to <span id="ref-modal-city-hint" class="font-bold text-slate-800">this doctor's city</span>? Select your local city to find verified local doctors sharing the same specialty, or request an official cross-city referral.
+        </p>
+        <div class="flex flex-col sm:flex-row items-center gap-3">
+          <div class="w-full sm:flex-1">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Your Local City</label>
+            <select id="ref-modal-city-select" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="Yavatmal">Yavatmal (Maharashtra)</option>
+              <option value="Amravati">Amravati (Maharashtra)</option>
+              <option value="Nagpur">Nagpur (Maharashtra)</option>
+              <option value="Pune">Pune (Maharashtra)</option>
+              <option value="Mumbai">Mumbai (Maharashtra)</option>
+              <option value="Nashik">Nashik (Maharashtra)</option>
+              <option value="Aurangabad">Chhatrapati Sambhajinagar / Aurangabad</option>
+            </select>
+          </div>
+          <button type="button" id="btn-search-local-matches" class="w-full sm:w-auto mt-4 sm:mt-5 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition shadow-sm">
+            Search Local
+          </button>
+        </div>
+      </div>
+
+      <!-- Results / Teleconsultation Fallback Container -->
+      <div id="ref-modal-results-container" class="space-y-4">
+        <!-- Injected dynamically -->
+      </div>
+
+      <!-- Patient Consent & Referral Confirmation Section -->
+      <div id="ref-modal-consent-section" class="hidden p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3 text-xs">
+        <div class="flex items-start gap-2.5">
+          <input type="checkbox" id="chk-patient-consent" class="mt-0.5 rounded text-sky-600 focus:ring-sky-500">
+          <label for="chk-patient-consent" class="text-slate-700 leading-relaxed font-medium">
+            <span class="font-bold text-amber-900 block">Mandatory Patient Consent (Module 6):</span>
+            I explicitly consent to share my preliminary clinical summary, medical notes, and consultation request with the receiving specialist doctor.
+          </label>
+        </div>
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="btn-submit-cross-referral" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed">
+            Submit Cross-City Referral Request
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-400">
     &copy; 2026 CarePulse Central Hospital. All rights reserved.
   </footer>
@@ -53,14 +118,17 @@
   <script src="js/config.js"></script>
   <script src="js/supabase.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/location.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const doctorId = urlParams.get('id');
+      let currentDoc = null;
 
       const loadDoctorProfile = async () => {
         const doctors = await window.CarePulseDB.getDoctors();
         const doc = doctors.find(d => d.id === doctorId) || doctors[0];
+        currentDoc = doc;
 
         if (!doc) {
           document.getElementById('doctor-profile-content').innerHTML = `
@@ -75,6 +143,11 @@
         const schedules = await window.CarePulseDB.getDoctorAvailability(doc.id);
         const reviews = await window.CarePulseDB.getReviews(doc.id);
         const liveAvail = await window.CarePulseDB.calculateDoctorAvailability(doc.id);
+        const doctorHospitals = await window.CarePulseDB.getDoctorHospitals(doc.id);
+
+        const consultationModeText = doc.consultation_modes === 'both' 
+          ? 'In-Person & Online Video' 
+          : (doc.consultation_modes === 'video' ? 'Video Teleconsultation Only' : 'In-Person Clinic Visit');
 
         document.getElementById('doctor-profile-content').innerHTML = `
           <!-- Top Hero Card -->
@@ -88,12 +161,24 @@
                     <span class="w-2 h-2 rounded-full ${liveAvail.dotColor} animate-pulse"></span>
                     ${liveAvail.status}
                   </span>
-                  ${doc.is_verified ? `<span class="text-xs font-bold text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> Verified</span>` : ''}
+                  ${doc.is_verified ? `<span class="text-xs font-bold text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> Verified Specialist</span>` : ''}
                 </div>
 
                 <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-2">${doc.full_name}</h1>
                 <p class="text-sm text-slate-600 font-medium">${doc.specialization}</p>
                 <p class="text-xs text-slate-400 mt-0.5">${doc.qualification}</p>
+
+                <!-- Medical Registration & Verification Details (Module 2 & 5) -->
+                <div class="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200" title="State Medical Council Verified">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    ${doc.medical_council_name || 'State Medical Council'} &bull; Reg: ${doc.medical_registration_number || 'MMC-VERIFIED'} (${doc.registration_year || 'Active'})
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    <i data-lucide="${doc.consultation_modes === 'video' ? 'video' : 'building-2'}" class="w-3.5 h-3.5 text-indigo-600"></i>
+                    ${consultationModeText}
+                  </span>
+                </div>
 
                 <div class="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-xs text-slate-600">
                   <span class="flex items-center gap-1.5"><i data-lucide="briefcase" class="w-4 h-4 text-sky-600"></i> ${doc.experience_years}+ Years Experience</span>
@@ -110,6 +195,38 @@
               <a href="patient/book-appointment.html?doctorId=${doc.id}" class="w-full block px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md transition text-center">
                 Book Consultation Now
               </a>
+              <button type="button" id="btn-open-referral-finder" class="w-full mt-2.5 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition text-center flex items-center justify-center gap-1.5 shadow-sm">
+                <i data-lucide="arrow-left-right" class="w-4 h-4 text-sky-600"></i> Find Local Doctor / Referral
+              </button>
+            </div>
+          </div>
+
+          <!-- Practice Locations & Hospital Affiliations (Module 2 & 5) -->
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="building-2" class="w-5 h-5 text-sky-600"></i> Practice Locations & Associated Hospitals
+              </h3>
+              <span class="text-xs font-bold text-slate-400">${doctorHospitals.length} Affiliated Facility</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${doctorHospitals.map(dh => `
+                <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex items-start justify-between gap-4">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                      <h4 class="font-bold text-sm text-slate-900">${dh.hospital_name || 'CarePulse Central Hospital'}</h4>
+                      ${dh.is_primary ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">Primary</span>` : ''}
+                    </div>
+                    <p class="text-xs text-slate-500 flex items-center gap-1">
+                      <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i> ${dh.city_name || 'Maharashtra'} &bull; OPD: ${dh.opd_room || doc.room_number || 'Room 101'}
+                    </p>
+                    <p class="text-xs font-semibold text-slate-700">Consultation Fee: $${dh.consultation_fee || doc.consultation_fee}</p>
+                  </div>
+                  <a href="hospital-profile.html?id=${dh.hospital_id || 'c0000000-0000-0000-0000-000000000001'}" class="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-sky-600 hover:bg-sky-50 transition shrink-0">
+                    View Hospital →
+                  </a>
+                </div>
+              `).join('')}
             </div>
           </div>
 
@@ -194,7 +311,147 @@
         `;
 
         if (window.lucide) window.lucide.createIcons();
+
+        // Wire Referral Finder Modal (Module 6)
+        const refBtn = document.getElementById('btn-open-referral-finder');
+        if (refBtn) {
+          refBtn.addEventListener('click', () => {
+            const modal = document.getElementById('referral-finder-modal');
+            const cityHint = document.getElementById('ref-modal-city-hint');
+            if (cityHint) cityHint.textContent = doc.city_name || 'Mumbai';
+            modal.classList.remove('hidden');
+            triggerLocalSearch();
+          });
+        }
       };
+
+      const refModal = document.getElementById('referral-finder-modal');
+      const closeRefBtn = document.getElementById('btn-close-referral-modal');
+      const searchLocalBtn = document.getElementById('btn-search-local-matches');
+      const citySelect = document.getElementById('ref-modal-city-select');
+      const resultsContainer = document.getElementById('ref-modal-results-container');
+      const consentSection = document.getElementById('ref-modal-consent-section');
+      const submitRefBtn = document.getElementById('btn-submit-cross-referral');
+      const consentChk = document.getElementById('chk-patient-consent');
+
+      if (closeRefBtn) {
+        closeRefBtn.addEventListener('click', () => refModal.classList.add('hidden'));
+      }
+
+      async function triggerLocalSearch() {
+        if (!currentDoc) return;
+        const targetCity = citySelect.value;
+        resultsContainer.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Searching certified specialists in ' + targetCity + '...</div>';
+        
+        const doctors = await window.CarePulseDB.getDoctors();
+        const spec = (currentDoc.specialization || currentDoc.department_name || '').toLowerCase();
+        
+        // Find approved doctors in targetCity sharing the specialty
+        const localMatches = doctors.filter(d => 
+          d.id !== currentDoc.id &&
+          (d.city_name && d.city_name.toLowerCase() === targetCity.toLowerCase() || (d.address && d.address.toLowerCase().includes(targetCity.toLowerCase()))) &&
+          ((d.specialization && d.specialization.toLowerCase().includes(spec)) || (d.department_name && d.department_name.toLowerCase().includes(spec)))
+        );
+
+        if (localMatches.length > 0) {
+          resultsContainer.innerHTML = `
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+                  <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> ${localMatches.length} Matching Specialist(s) in ${targetCity}
+                </span>
+                <span class="text-[11px] text-slate-400">No travel required</span>
+              </div>
+              <div class="grid grid-cols-1 gap-3">
+                ${localMatches.map(m => `
+                  <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                      <img src="${m.profile_image}" class="w-12 h-12 rounded-xl object-cover">
+                      <div>
+                        <h4 class="font-bold text-xs text-slate-900">${m.full_name}</h4>
+                        <p class="text-[11px] text-slate-500">${m.specialization} &bull; ${m.experience_years}+ Yrs Exp</p>
+                        <p class="text-[10px] text-slate-400">${m.hospital_name || targetCity + ' Medical Center'}</p>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <a href="patient/book-appointment.html?doctorId=${m.id}" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                        Book Local
+                      </a>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+          consentSection.classList.add('hidden');
+        } else {
+          // No local specialist exists: show Teleconsultation or Cross-City Referral (Module 6 Requirement 10)
+          resultsContainer.innerHTML = `
+            <div class="p-5 rounded-2xl border border-amber-200 bg-amber-50/50 space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <i data-lucide="info" class="w-5 h-5"></i>
+                </div>
+                <div class="space-y-1">
+                  <h4 class="font-bold text-xs text-slate-900">No local ${currentDoc.department_name} specialist in ${targetCity}</h4>
+                  <p class="text-xs text-slate-600 leading-relaxed">
+                    Patients in smaller cities like ${targetCity} can consult ${currentDoc.full_name} directly via <strong>Online Video Teleconsultation</strong> without traveling to ${currentDoc.city_name || 'Mumbai'}, or request a formal cross-city clinical referral.
+                  </p>
+                </div>
+              </div>
+              <div class="pt-2 flex flex-wrap items-center gap-3">
+                <a href="patient/book-appointment.html?doctorId=${currentDoc.id}&mode=video" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+                  <i data-lucide="video" class="w-4 h-4"></i> Book Online Video Consultation
+                </a>
+              </div>
+            </div>
+          `;
+          consentSection.classList.remove('hidden');
+        }
+
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      if (searchLocalBtn) {
+        searchLocalBtn.addEventListener('click', triggerLocalSearch);
+      }
+
+      if (submitRefBtn) {
+        submitRefBtn.addEventListener('click', async () => {
+          if (!consentChk.checked) {
+            alert('Mandatory Patient Consent: You must check the consent acknowledgment before submitting your medical referral.');
+            return;
+          }
+          submitRefBtn.disabled = true;
+          submitRefBtn.textContent = 'Submitting Referral...';
+          
+          try {
+            const user = window.Auth ? window.Auth.getCurrentUser() : null;
+            if (!user) {
+              alert('Please sign in to submit a medical referral request.');
+              window.location.href = `login.html?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+              return;
+            }
+
+            const referral = await window.CarePulseDB.createReferralRequest({
+              patientId: user.id,
+              receivingDoctorId: currentDoc.id,
+              originCity: citySelect.value,
+              destinationCity: currentDoc.city_name || 'Mumbai',
+              specialty: currentDoc.specialization || currentDoc.department_name,
+              consentGiven: true
+            });
+
+            alert('✓ Cross-City Referral Request submitted successfully! Receiving doctor will review your clinical history.');
+            refModal.classList.add('hidden');
+          } catch (err) {
+            alert('Referral submission: ' + err.message);
+          } finally {
+            submitRefBtn.disabled = false;
+            submitRefBtn.textContent = 'Submit Cross-City Referral Request';
+          }
+        });
+      }
 
       await loadDoctorProfile();
       if (window.CarePulseDB?.enableAutoRealtimeSync) {

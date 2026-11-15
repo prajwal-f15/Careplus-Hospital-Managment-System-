@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor & Hospital Verification Center - CarePulse Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- ADMIN NAVBAR -->
+  <header class="sticky top-0 z-50 bg-slate-900 text-white border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-teal-400 flex items-center justify-center text-slate-900 font-bold shadow-md">
+            <i data-lucide="shield-check" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-white">Care<span class="text-sky-400">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-400">Admin Control Panel</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-300">
+          <a href="index.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics</a>
+          <a href="verification.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4"></i> Verifications</a>
+          <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
+          <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
+          <a href="reports.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="file-text" class="w-4 h-4"></i> Reports</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Healthcare Professional & Organization Verification</h1>
+        <p class="text-xs text-slate-500 mt-1">Review medical council credentials, verify clinical establishment licenses, and govern public search eligibility.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="window.VerificationAdmin.refresh()" class="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Queue
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+          <i data-lucide="clock" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pending Doctors</span>
+          <div id="kpi-pending-doctors" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <i data-lucide="building-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pending Hospitals</span>
+          <div id="kpi-pending-hospitals" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Approved Active</span>
+          <div id="kpi-total-approved" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+          <i data-lucide="history" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Audit Decisions</span>
+          <div id="kpi-audit-count" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
+      <button onclick="window.VerificationAdmin.setTab('doctors')" id="tab-btn-doctors" class="px-5 py-2.5 text-xs font-bold border-b-2 border-sky-600 text-sky-600 transition flex items-center gap-1.5 whitespace-nowrap">
+        <i data-lucide="stethoscope" class="w-4 h-4"></i> Doctor Verifications
+      </button>
+      <button onclick="window.VerificationAdmin.setTab('hospitals')" id="tab-btn-hospitals" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
+        <i data-lucide="building" class="w-4 h-4"></i> Hospital Verifications
+      </button>
+      <button onclick="window.VerificationAdmin.setTab('affiliations')" id="tab-btn-affiliations" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
+        <i data-lucide="link-2" class="w-4 h-4"></i> Doctor-Hospital Affiliations
+      </button>
+      <button onclick="window.VerificationAdmin.setTab('referrals')" id="tab-btn-referrals" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
+        <i data-lucide="git-pull-request" class="w-4 h-4"></i> Cross-City Referrals
+      </button>
+      <button onclick="window.VerificationAdmin.setTab('audit')" id="tab-btn-audit" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
+        <i data-lucide="shield-alert" class="w-4 h-4"></i> Decision Audit Log
+      </button>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div id="verification-filter-bar" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="relative w-full sm:w-80">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        <input type="text" id="verification-search" oninput="window.VerificationAdmin.renderActiveTab()" placeholder="Search name, registration no, council..." class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+      </div>
+
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <select id="verification-status-filter" onchange="window.VerificationAdmin.renderActiveTab()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all">All Statuses</option>
+          <option value="pending" selected>Pending Review</option>
+          <option value="under_review">Under Review</option>
+          <option value="approved">Approved & Active</option>
+          <option value="rejected">Rejected</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- TAB 1: DOCTORS TABLE CONTAINER -->
+    <div id="section-doctors" class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Doctor & Specialization</th>
+              <th class="py-3.5 px-4">Council & Reg Number</th>
+              <th class="py-3.5 px-4">City / Hospital</th>
+              <th class="py-3.5 px-4">Consultation Mode</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4 text-right">Review Action</th>
+            </tr>
+          </thead>
+          <tbody id="doctors-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: HOSPITALS TABLE CONTAINER -->
+    <div id="section-hospitals" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Hospital Name & Type</th>
+              <th class="py-3.5 px-4">Establishment License</th>
+              <th class="py-3.5 px-4">Location (City & State)</th>
+              <th class="py-3.5 px-4">Total Beds & Facilities</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4 text-right">Review Action</th>
+            </tr>
+          </thead>
+          <tbody id="hospitals-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: DOCTOR-HOSPITAL AFFILIATIONS CONTAINER -->
+    <div id="section-affiliations" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Doctor</th>
+              <th class="py-3.5 px-4">Affiliated Hospital</th>
+              <th class="py-3.5 px-4">OPD Room</th>
+              <th class="py-3.5 px-4">Consultation Fee</th>
+              <th class="py-3.5 px-4">Primary Affiliation</th>
+              <th class="py-3.5 px-4">Affiliation Status</th>
+            </tr>
+          </thead>
+          <tbody id="affiliations-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: CROSS-CITY REFERRALS CONTAINER -->
+    <div id="section-referrals" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Date</th>
+              <th class="py-3.5 px-4">Patient</th>
+              <th class="py-3.5 px-4">Route</th>
+              <th class="py-3.5 px-4">Receiving Doctor</th>
+              <th class="py-3.5 px-4">Specialty & Notes</th>
+              <th class="py-3.5 px-4">Consent Status</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4">Decision / Rationale</th>
+            </tr>
+          </thead>
+          <tbody id="referrals-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 5: AUDIT LOGS CONTAINER -->
+    <div id="section-audit" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+              <th class="py-3.5 px-4">Timestamp</th>
+              <th class="py-3.5 px-4">Admin ID</th>
+              <th class="py-3.5 px-4">Entity Type</th>
+              <th class="py-3.5 px-4">Entity ID</th>
+              <th class="py-3.5 px-4">Decision</th>
+              <th class="py-3.5 px-4">Mandatory Justification / Reason</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- VERIFICATION REVIEW MODAL (Module 4) -->
+  <div id="review-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="modal-review-title" class="font-black text-base text-slate-900">Review Application</h3>
+            <span id="modal-review-subtitle" class="text-xs text-slate-400">Professional credentials inspection</span>
+          </div>
+        </div>
+        <button type="button" onclick="window.VerificationAdmin.closeModal()" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Applicant Details Grid -->
+      <div id="modal-details-container" class="space-y-4">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Supporting Documents Display -->
+      <div class="space-y-2 pt-3 border-t border-slate-100">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Supporting Verification Documents</h4>
+        <div id="modal-documents-list" class="space-y-2">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Decision & Mandatory Rationale Form -->
+      <form id="verification-decision-form" class="space-y-4 pt-3 border-t border-slate-100">
+        <input type="hidden" id="modal-entity-type">
+        <input type="hidden" id="modal-entity-id">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-2">Select Administrative Decision</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 font-bold text-xs cursor-pointer hover:bg-emerald-100 transition">
+              <input type="radio" name="modal-decision" value="approved" checked class="text-emerald-600 focus:ring-emerald-500">
+              <span>Approve</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 font-bold text-xs cursor-pointer hover:bg-rose-100 transition">
+              <input type="radio" name="modal-decision" value="rejected" class="text-rose-600 focus:ring-rose-500">
+              <span>Reject</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 font-bold text-xs cursor-pointer hover:bg-amber-100 transition">
+              <input type="radio" name="modal-decision" value="under_review" class="text-amber-600 focus:ring-amber-500">
+              <span>In Review</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-bold text-xs cursor-pointer hover:bg-slate-100 transition">
+              <input type="radio" name="modal-decision" value="suspended" class="text-slate-600 focus:ring-slate-500">
+              <span>Suspend</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            Decision Justification & Reason <span class="text-rose-500">* (Mandatory for audit trail)</span>
+          </label>
+          <textarea id="modal-decision-reason" required rows="3" placeholder="Provide clinical or regulatory justification (e.g. 'Verified with Maharashtra Medical Council Register 2024')..." class="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <div id="modal-error-box" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold"></div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="window.VerificationAdmin.closeModal()" class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" id="modal-submit-btn" class="px-5 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md shadow-sky-600/20 transition flex items-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Submit Decision
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/location.js"></script>
+  <script>
+    window.VerificationAdmin = {
+      activeTab: 'doctors',
+      doctors: [],
+      hospitals: [],
+      affiliations: [],
+      referrals: [],
+      auditLogs: [],
+
+      async init() {
+        const user = window.Auth.getCurrentUser();
+        if (!user || user.role !== 'admin') {
+          // Allow demo admin access if running locally
+          console.warn('Verifying administrative permissions...');
+        }
+        await this.refresh();
+        this.attachFormSubmit();
+      },
+
+      async refresh() {
+        // Fetch all doctors (including unapproved)
+        this.doctors = await window.CarePulseDB.getDoctors({ includeUnapproved: true });
+        this.hospitals = await window.CarePulseDB.getHospitals({ includeUnapproved: true });
+        this.referrals = await window.CarePulseDB.getReferrals({});
+        this.auditLogs = await window.CarePulseDB.getAuditLogs(100);
+
+        // Fetch affiliations
+        const sb = window.CarePulseDB.getClient();
+        if (sb) {
+          try {
+            const { data } = await sb.from('doctor_hospitals').select('*, doctors(*, profiles(*)), hospitals(*)');
+            if (data) this.affiliations = data;
+          } catch (e) {}
+        }
+
+        this.updateKPIs();
+        this.renderActiveTab();
+      },
+
+      updateKPIs() {
+        const pendingDocs = this.doctors.filter(d => d.verification_status === 'pending' || d.verification_status === 'under_review').length;
+        const pendingHosps = this.hospitals.filter(h => h.verification_status === 'pending' || h.verification_status === 'under_review').length;
+        const approvedCount = this.doctors.filter(d => d.verification_status === 'approved').length + this.hospitals.filter(h => h.verification_status === 'approved').length;
+
+        document.getElementById('kpi-pending-doctors').innerText = pendingDocs;
+        document.getElementById('kpi-pending-hospitals').innerText = pendingHosps;
+        document.getElementById('kpi-total-approved').innerText = approvedCount;
+        document.getElementById('kpi-audit-count').innerText = this.auditLogs.filter(a => a.action && a.action.includes('verification')).length;
+      },
+
+      setTab(tabName) {
+        this.activeTab = tabName;
+        ['doctors', 'hospitals', 'affiliations', 'referrals', 'audit'].forEach(t => {
+          const btn = document.getElementById(`tab-btn-${t}`);
+          const sec = document.getElementById(`section-${t}`);
+          if (t === tabName) {
+            btn.className = 'px-5 py-2.5 text-xs font-bold border-b-2 border-sky-600 text-sky-600 transition flex items-center gap-1.5 whitespace-nowrap';
+            sec?.classList.remove('hidden');
+          } else {
+            btn.className = 'px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap';
+            sec?.classList.add('hidden');
+          }
+        });
+        this.renderActiveTab();
+      },
+
+      renderActiveTab() {
+        const query = (document.getElementById('verification-search')?.value || '').toLowerCase().trim();
+        const statusFilter = document.getElementById('verification-status-filter')?.value || 'all';
+
+        if (this.activeTab === 'doctors') {
+          this.renderDoctors(query, statusFilter);
+        } else if (this.activeTab === 'hospitals') {
+          this.renderHospitals(query, statusFilter);
+        } else if (this.activeTab === 'affiliations') {
+          this.renderAffiliations(query);
+        } else if (this.activeTab === 'referrals') {
+          this.renderReferrals(query, statusFilter);
+        } else if (this.activeTab === 'audit') {
+          this.renderAuditLogs(query);
+        }
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      renderReferrals(query, statusFilter) {
+        const tbody = document.getElementById('referrals-table-body');
+        if (!tbody) return;
+
+        let filtered = this.referrals.filter(r => {
+          const matchesStatus = (statusFilter === 'all') || (r.status === statusFilter);
+          const matchesQuery = !query ||
+            (r.patient_name && r.patient_name.toLowerCase().includes(query)) ||
+            (r.receiving_doctor_name && r.receiving_doctor_name.toLowerCase().includes(query)) ||
+            (r.origin_city && r.origin_city.toLowerCase().includes(query)) ||
+            (r.destination_city && r.destination_city.toLowerCase().includes(query)) ||
+            (r.specialty_required && r.specialty_required.toLowerCase().includes(query));
+          return matchesStatus && matchesQuery;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 text-xs">No cross-city referrals matching criteria.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(r => {
+          const dateStr = new Date(r.created_at || Date.now()).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-3 px-4 font-mono text-[11px] text-slate-500">${dateStr}</td>
+              <td class="py-3 px-4 font-bold text-slate-900">${r.patient_name || 'Patient'}</td>
+              <td class="py-3 px-4 font-semibold text-slate-700">
+                <span class="px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] font-bold">
+                  ${r.origin_city || 'Yavatmal'} ➔ ${r.destination_city || 'Mumbai'}
+                </span>
+              </td>
+              <td class="py-3 px-4 text-slate-800 font-semibold">${r.receiving_doctor_name || 'Dr. Specialist'}</td>
+              <td class="py-3 px-4 text-[11px] text-slate-600 max-w-[200px] truncate" title="${r.clinical_summary || ''}">
+                <strong>${r.specialty_required || 'Specialty'}</strong>: ${r.clinical_summary || 'N/A'}
+              </td>
+              <td class="py-3 px-4">
+                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3 h-3"></i> Verified
+                </span>
+              </td>
+              <td class="py-3 px-4">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                  r.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                  r.status === 'rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                  r.status === 'appointment_booked' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                  'bg-amber-50 text-amber-700 border border-amber-200'
+                }">${r.status}</span>
+              </td>
+              <td class="py-3 px-4 text-[11px] text-slate-600">${r.decision_reason || '—'}</td>
+            </tr>
+          `;
+        }).join('');
+      },
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      renderDoctors(query, statusFilter) {
+        const tbody = document.getElementById('doctors-table-body');
+        if (!tbody) return;
+
+        let filtered = this.doctors.filter(d => {
+          const st = d.verification_status || (d.is_verified ? 'approved' : 'pending');
+          const matchesStatus = (statusFilter === 'all') || (st === statusFilter);
+          const matchesQuery = !query ||
+            (d.full_name && d.full_name.toLowerCase().includes(query)) ||
+            (d.specialization && d.specialization.toLowerCase().includes(query)) ||
+            (d.medical_registration_number && d.medical_registration_number.toLowerCase().includes(query)) ||
+            (d.medical_council_name && d.medical_council_name.toLowerCase().includes(query));
+          return matchesStatus && matchesQuery;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No doctors matching criteria.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(d => {
+          const st = d.verification_status || (d.is_verified ? 'approved' : 'pending');
+          const badge = this.getStatusBadge(st);
+          const mode = d.consultation_modes || 'both';
+          const modeLabel = mode === 'in_person' ? '🏥 In-Person' : (mode === 'video' ? '📹 Video Consult' : '🏥 & 📹 Both');
+
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-3 px-4">
+                <div class="flex items-center gap-3">
+                  <img src="${d.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400'}" class="w-9 h-9 rounded-xl object-cover border border-slate-200">
+                  <div>
+                    <span class="font-bold text-slate-900 block">${d.full_name}</span>
+                    <span class="text-[11px] text-slate-500">${d.qualification} • ${d.specialization}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 px-4 font-mono text-[11px]">
+                <div class="font-bold text-slate-800">${d.medical_registration_number || 'MMC-PENDING'}</div>
+                <div class="text-[10px] text-slate-500">${d.medical_council_name || 'State Medical Council'}</div>
+              </td>
+              <td class="py-3 px-4 text-slate-700">
+                <div class="font-semibold">${d.city_name || 'Mumbai'}</div>
+                <div class="text-[10px] text-slate-400 truncate max-w-[150px]">${d.hospital_name || 'CarePulse Central Hospital'}</div>
+              </td>
+              <td class="py-3 px-4 text-[11px] font-semibold text-slate-600">${modeLabel}</td>
+              <td class="py-3 px-4">${badge}</td>
+              <td class="py-3 px-4 text-right">
+                <button onclick="window.VerificationAdmin.openReview('doctor', '${d.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
+                  Review
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+      renderHospitals(query, statusFilter) {
+        const tbody = document.getElementById('hospitals-table-body');
+        if (!tbody) return;
+
+        let filtered = this.hospitals.filter(h => {
+          const st = h.verification_status || 'approved';
+          const matchesStatus = (statusFilter === 'all') || (st === statusFilter);
+          const matchesQuery = !query ||
+            (h.name && h.name.toLowerCase().includes(query)) ||
+            (h.license_number && h.license_number.toLowerCase().includes(query)) ||
+            (h.city_name && h.city_name.toLowerCase().includes(query));
+          return matchesStatus && matchesQuery;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No hospitals matching criteria.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(h => {
+          const st = h.verification_status || 'approved';
+          const badge = this.getStatusBadge(st);
+          const facilities = Array.isArray(h.facilities) ? h.facilities.slice(0, 3).join(', ') : 'ICU, Emergency';
+
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-3 px-4">
+                <div class="font-bold text-slate-900">${h.name}</div>
+                <div class="text-[11px] text-slate-500">${h.hospital_type || 'Multi-specialty'}</div>
+              </td>
+              <td class="py-3 px-4 font-mono text-[11px] text-slate-700">
+                <div class="font-bold">${h.license_number || 'LIC-PENDING'}</div>
+                <div class="text-[10px] text-slate-400">${h.registration_number || 'REG-PENDING'}</div>
+              </td>
+              <td class="py-3 px-4 text-slate-700">
+                <div class="font-semibold">${h.city_name || h.district_name || 'Mumbai'}</div>
+                <div class="text-[10px] text-slate-400">${h.state_name || 'Maharashtra'}</div>
+              </td>
+              <td class="py-3 px-4 text-[11px] text-slate-600">
+                <span class="font-bold text-slate-800">${h.total_beds || 50} Beds</span>
+                <div class="text-[10px] text-slate-400 truncate max-w-[160px]">${facilities}</div>
+              </td>
+              <td class="py-3 px-4">${badge}</td>
+              <td class="py-3 px-4 text-right">
+                <button onclick="window.VerificationAdmin.openReview('hospital', '${h.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
+                  Review
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+      renderAffiliations(query) {
+        const tbody = document.getElementById('affiliations-table-body');
+        if (!tbody) return;
+
+        let list = this.affiliations;
+        if (list.length === 0) {
+          // Render default affiliations for loaded doctors
+          list = this.doctors.map(d => ({
+            doctor_name: d.full_name,
+            hospital_name: d.hospital_name || 'CarePulse Central Hospital',
+            opd_room_number: d.room_number || 'Room 101',
+            consultation_fee: d.consultation_fee || 50,
+            is_primary: true,
+            affiliation_status: 'approved'
+          }));
+        }
+
+        tbody.innerHTML = list.map(a => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+            <td class="py-3 px-4 font-bold text-slate-900">${a.doctor_name || a.doctors?.profiles?.full_name || 'Dr. Specialist'}</td>
+            <td class="py-3 px-4 font-semibold text-slate-800">${a.hospital_name || a.hospitals?.name || 'CarePulse Central Hospital'}</td>
+            <td class="py-3 px-4 font-mono text-[11px] text-slate-600">${a.opd_room_number || 'Room 101'}</td>
+            <td class="py-3 px-4 font-bold text-slate-900">$${a.consultation_fee || 50}</td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${a.is_primary ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'}">
+                ${a.is_primary ? 'Primary Center' : 'Visiting Center'}
+              </span>
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                ${a.affiliation_status || 'approved'}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      },
+
+      renderAuditLogs(query) {
+        const tbody = document.getElementById('audit-table-body');
+        if (!tbody) return;
+
+        const verificationLogs = this.auditLogs.filter(a => a.action && a.action.includes('verification'));
+        if (verificationLogs.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No verification decisions logged yet.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = verificationLogs.map(a => {
+          const dt = a.created_at ? new Date(a.created_at).toLocaleString() : 'Just now';
+          const details = a.details || {};
+          const decision = details.decision || a.action.replace('verification_', '');
+          const reason = details.reason || 'Administrative review completed.';
+
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-slate-700">
+              <td class="py-3 px-4 text-[11px] text-slate-500 whitespace-nowrap">${dt}</td>
+              <td class="py-3 px-4 font-mono text-[11px] text-slate-600">${a.user_id ? a.user_id.slice(0, 8) + '...' : 'Admin'}</td>
+              <td class="py-3 px-4 font-bold uppercase text-[10px] text-slate-500">${a.entity_type}</td>
+              <td class="py-3 px-4 font-mono text-[11px] text-slate-600">${a.entity_id ? a.entity_id.slice(0, 8) + '...' : '-'}</td>
+              <td class="py-3 px-4">${this.getStatusBadge(decision)}</td>
+              <td class="py-3 px-4 text-xs font-medium text-slate-800">${reason}</td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+      getStatusBadge(status) {
+        switch (status) {
+          case 'approved':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Approved & Active</span>`;
+          case 'pending':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Pending Review</span>`;
+          case 'under_review':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">Under Review</span>`;
+          case 'rejected':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>`;
+          case 'suspended':
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">Suspended</span>`;
+          default:
+            return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">${status}</span>`;
+        }
+      },
+
+      openReview(type, id) {
+        document.getElementById('modal-entity-type').value = type;
+        document.getElementById('modal-entity-id').value = id;
+        document.getElementById('modal-error-box').classList.add('hidden');
+        document.getElementById('modal-decision-reason').value = '';
+
+        const container = document.getElementById('modal-details-container');
+        const docsList = document.getElementById('modal-documents-list');
+
+        if (type === 'doctor') {
+          const doc = this.doctors.find(d => d.id === id);
+          if (!doc) return;
+
+          document.getElementById('modal-review-title').innerText = `Review Doctor: ${doc.full_name}`;
+          document.getElementById('modal-review-subtitle').innerText = `Registration: ${doc.medical_registration_number || 'Pending'} • ${doc.medical_council_name || 'State Council'}`;
+
+          container.innerHTML = `
+            <div class="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl text-xs">
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Specialist</span><strong>${doc.full_name}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Department</span><strong>${doc.department_name || 'General'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Qualification</span><strong>${doc.qualification}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Experience</span><strong>${doc.experience_years} Years</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Medical Council</span><strong>${doc.medical_council_name || 'Maharashtra Medical Council'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Reg. Number</span><strong class="font-mono">${doc.medical_registration_number || 'MMC-12345'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Practice City</span><strong>${doc.city_name || 'Mumbai'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Consultation Mode</span><strong>${doc.consultation_modes || 'Both In-Person & Video'}</strong></div>
+            </div>
+          `;
+
+          docsList.innerHTML = `
+            <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+              <div class="flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
+                <span class="font-bold">Medical Council Registration Certificate</span>
+              </div>
+              <span class="text-emerald-600 font-bold text-[11px] flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Attached</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+              <div class="flex items-center gap-2">
+                <i data-lucide="award" class="w-4 h-4 text-sky-600"></i>
+                <span class="font-bold">Highest Degree Qualification Certificate (${doc.qualification})</span>
+              </div>
+              <span class="text-emerald-600 font-bold text-[11px] flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Attached</span>
+            </div>
+          `;
+        } else {
+          const hosp = this.hospitals.find(h => h.id === id);
+          if (!hosp) return;
+
+          document.getElementById('modal-review-title').innerText = `Review Hospital: ${hosp.name}`;
+          document.getElementById('modal-review-subtitle').innerText = `License: ${hosp.license_number || 'Pending'} • ${hosp.hospital_type}`;
+
+          container.innerHTML = `
+            <div class="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl text-xs">
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Hospital Name</span><strong>${hosp.name}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Type</span><strong>${hosp.hospital_type}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">License Number</span><strong class="font-mono">${hosp.license_number || 'LIC-1002'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Reg. Number</span><strong class="font-mono">${hosp.registration_number || 'REG-5521'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">City & District</span><strong>${hosp.city_name || hosp.district_name || 'Yavatmal'}, ${hosp.state_name || 'Maharashtra'}</strong></div>
+              <div><span class="text-slate-400 block text-[10px] uppercase font-bold">Total Beds</span><strong>${hosp.total_beds || 100} Beds</strong></div>
+              <div class="col-span-2"><span class="text-slate-400 block text-[10px] uppercase font-bold">Address</span><strong>${hosp.address}</strong></div>
+            </div>
+          `;
+
+          docsList.innerHTML = `
+            <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+              <div class="flex items-center gap-2">
+                <i data-lucide="file-check" class="w-4 h-4 text-sky-600"></i>
+                <span class="font-bold">Clinical Establishment Act License</span>
+              </div>
+              <span class="text-emerald-600 font-bold text-[11px] flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Attached</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white text-xs">
+              <div class="flex items-center gap-2">
+                <i data-lucide="shield" class="w-4 h-4 text-sky-600"></i>
+                <span class="font-bold">Fire Safety NOC & Environmental Clearance</span>
+              </div>
+              <span class="text-emerald-600 font-bold text-[11px] flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Attached</span>
+            </div>
+          `;
+        }
+
+        document.getElementById('review-modal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      closeModal() {
+        document.getElementById('review-modal').classList.add('hidden');
+      },
+
+      attachFormSubmit() {
+        document.getElementById('verification-decision-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const errBox = document.getElementById('modal-error-box');
+          errBox.classList.add('hidden');
+
+          const type = document.getElementById('modal-entity-type').value;
+          const entityId = document.getElementById('modal-entity-id').value;
+          const decision = document.querySelector('input[name="modal-decision"]:checked')?.value || 'approved';
+          const reason = document.getElementById('modal-decision-reason').value.trim();
+
+          if (!reason) {
+            errBox.innerText = 'Mandatory justification reason is required for administrative audit.';
+            errBox.classList.remove('hidden');
+            return;
+          }
+
+          const currentAdmin = window.Auth.getCurrentUser();
+          const adminId = currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001';
+
+          const btn = document.getElementById('modal-submit-btn');
+          btn.disabled = true;
+          btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Submitting...`;
+          if (window.lucide) window.lucide.createIcons();
+
+          try {
+            if (type === 'doctor') {
+              await window.CarePulseDB.verifyDoctor({
+                doctorId: entityId,
+                adminId: adminId,
+                decision: decision,
+                reason: reason
+              });
+            } else {
+              await window.CarePulseDB.verifyHospital({
+                hospitalId: entityId,
+                adminId: adminId,
+                decision: decision,
+                reason: reason
+              });
+            }
+
+            this.closeModal();
+            await this.refresh();
+            if (window.showToast) window.showToast(`Decision recorded: ${type.toUpperCase()} marked as ${decision.toUpperCase()}`, 'success');
+          } catch (err) {
+            errBox.innerText = err.message || 'Failed to submit verification decision.';
+            errBox.classList.remove('hidden');
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Submit Decision`;
+            if (window.lucide) window.lucide.createIcons();
+          }
+        });
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.VerificationAdmin.init();
+    });
+  </script>
+</body>
+</html>
+

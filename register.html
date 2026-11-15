@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account - CarePulse Hospital</title>
+  <title>Create Account - CarePulse Hospital Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -24,31 +24,44 @@
   </header>
 
   <!-- Register Card -->
-  <main class="max-w-lg w-full mx-auto px-4 py-6">
-    <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl space-y-6">
+  <main class="max-w-2xl w-full mx-auto px-4 py-6">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl space-y-6">
       <div class="text-center space-y-1">
-        <h1 class="text-2xl font-black text-slate-900">Create Account</h1>
-        <p class="text-xs text-slate-500">Register as a Patient to book slots or as a Medical Specialist</p>
+        <h1 class="text-2xl font-black text-slate-900">Create Healthcare Account</h1>
+        <p class="text-xs text-slate-500">Register as a Patient, Medical Consultant, or Healthcare Organization</p>
       </div>
 
-      <!-- Role Selector Tabs -->
-      <div class="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+      <!-- 3-Way Role Selector Tabs (Modules 2 & 3) -->
+      <div class="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-100 rounded-2xl text-center">
         <button type="button" id="role-tab-patient" onclick="setRegisterRole('patient')" class="py-2.5 text-xs font-bold rounded-xl bg-white text-sky-700 shadow-sm transition">
-          👤 I am a Patient
+          👤 Patient
         </button>
         <button type="button" id="role-tab-doctor" onclick="setRegisterRole('doctor')" class="py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition">
-          👨‍⚕️ I am a Doctor
+          👨‍⚕️ Doctor Specialist
         </button>
+        <button type="button" id="role-tab-hospital" onclick="setRegisterRole('hospital')" class="py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition">
+          🏥 Hospital / Clinic
+        </button>
+      </div>
+
+      <!-- Informational Verification Note for Providers -->
+      <div id="provider-verification-notice" class="hidden p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
+        <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+        <div>
+          <span class="font-bold block">Professional Verification Required</span>
+          To protect patient safety, doctor and hospital profiles remain unpublished in public search until credentials and establishment licenses are verified by CarePulse Administrators.
+        </div>
       </div>
 
       <form id="register-form" class="space-y-4">
         <input type="hidden" id="reg-role" value="patient">
 
+        <!-- Universal Fields -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">Full Legal Name</label>
+          <label id="label-name" class="block text-xs font-bold text-slate-700 mb-1">Full Legal Name</label>
           <div class="relative">
             <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
-            <input type="text" id="reg-name" required placeholder="e.g. John Doe / Dr. Sarah" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            <input type="text" id="reg-name" required placeholder="e.g. John Doe / Dr. Rahul Sharma" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
           </div>
         </div>
 
@@ -64,7 +77,7 @@
             <label class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
             <div class="relative">
               <i data-lucide="phone" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
-              <input type="tel" id="reg-phone" required placeholder="+1 (555) 000-0000" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+              <input type="tel" id="reg-phone" required placeholder="+91 98765 43210" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
             </div>
           </div>
         </div>
@@ -77,29 +90,136 @@
           </div>
         </div>
 
-        <!-- Doctor Specific Fields -->
-        <div id="doctor-extra-fields" class="hidden space-y-4 pt-2 border-t border-slate-100">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Specialization / Designation</label>
-            <input type="text" id="reg-specialization" placeholder="e.g. Consultant Orthopedic Surgeon" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        <!-- DOCTOR SPECIFIC FIELDS (Module 2) -->
+        <div id="doctor-extra-fields" class="hidden space-y-4 pt-3 border-t border-slate-100">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-teal-700 flex items-center gap-1.5">
+            <i data-lucide="stethoscope" class="w-3.5 h-3.5"></i> Medical Practice & Credentials
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Medical Registration Number *</label>
+              <input type="text" id="reg-council-no" placeholder="e.g. MMC-2018-0914" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">State Medical Council *</label>
+              <input type="text" id="reg-council-name" placeholder="e.g. Maharashtra Medical Council" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Specialization / Designation *</label>
+              <input type="text" id="reg-specialization" placeholder="e.g. Consultant Cardiologist" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
+            <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Clinical Department</label>
-              <select id="reg-department" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
-                <!-- Populated dynamically -->
+              <select id="reg-department" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+                <!-- Dynamically populated -->
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Qualifications *</label>
+              <input type="text" id="reg-qualification" placeholder="e.g. MBBS, MD (Medicine), DM" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Experience (Years)</label>
+              <input type="number" id="reg-experience" min="0" value="5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Consultation Fee ($/₹)</label>
+              <input type="number" id="reg-fee" min="0" value="50" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Practice City *</label>
+              <select id="reg-city" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+                <option value="">Select Primary City</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Years of Experience</label>
-              <input type="number" id="reg-experience" min="0" value="5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+              <label class="block text-xs font-bold text-slate-700 mb-1">Consultation Mode *</label>
+              <select id="reg-mode" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+                <option value="both" selected>Both In-Person Clinic & Video Teleconsultation</option>
+                <option value="in_person">In-Person Clinic Visit Only</option>
+                <option value="video">Online Video Teleconsultation Only</option>
+              </select>
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Qualifications / Degrees</label>
-            <input type="text" id="reg-qualification" placeholder="e.g. MBBS, MD (Cardiology), FACC" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Primary Clinic / Hospital Affiliation</label>
+            <input type="text" id="reg-affiliation" placeholder="e.g. CarePulse Central Hospital, Mumbai / Yavatmal Clinic" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <!-- HOSPITAL SPECIFIC FIELDS (Module 3) -->
+        <div id="hospital-extra-fields" class="hidden space-y-4 pt-3 border-t border-slate-100">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
+            <i data-lucide="building-2" class="w-3.5 h-3.5"></i> Hospital Establishment Details
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Hospital Type *</label>
+              <select id="reg-hosp-type" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+                <option value="Private Multi-specialty" selected>Private Multi-specialty</option>
+                <option value="Super-specialty">Super-specialty</option>
+                <option value="Government">Government / Public Hospital</option>
+                <option value="Clinic">Outpatient Clinic</option>
+                <option value="Diagnostic Center">Diagnostic Center</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Total Inpatient Beds</label>
+              <input type="number" id="reg-hosp-beds" min="5" value="50" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Establishment License Number *</label>
+              <input type="text" id="reg-hosp-license" placeholder="e.g. LIC-MCGM-HOSP-2024-001" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">24x7 Emergency Phone *</label>
+              <input type="tel" id="reg-hosp-emergency" placeholder="+91 22 4910 9999" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">City *</label>
+              <select id="reg-hosp-city" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+                <option value="">Select City</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">PIN Code *</label>
+              <input type="text" id="reg-hosp-pin" placeholder="e.g. 400050 / 445001" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Complete Street Address *</label>
+            <input type="text" id="reg-hosp-address" placeholder="Building, Street, Landmark, District, State" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Accredited Facilities Available</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-slate-700">
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="ICU" checked class="rounded text-sky-600"> ICU</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="Emergency 24x7" checked class="rounded text-sky-600"> Emergency 24x7</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="Pharmacy" checked class="rounded text-sky-600"> Pharmacy</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="Laboratory" checked class="rounded text-sky-600"> Laboratory</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="Ambulance" checked class="rounded text-sky-600"> Ambulance</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" name="hosp-facility" value="Cath Lab" class="rounded text-sky-600"> Cath Lab</label>
+            </div>
           </div>
         </div>
 
@@ -123,31 +243,60 @@
   <script src="js/config.js"></script>
   <script src="js/supabase.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/location.js"></script>
   <script>
     lucide.createIcons();
 
-    // Load departments into select
+    // Populate clinical departments
     window.CarePulseDB.getDepartments().then(depts => {
       const select = document.getElementById('reg-department');
-      if (select) {
+      if (select && Array.isArray(depts)) {
         select.innerHTML = depts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
       }
     });
+
+    // Populate cities for Doctor and Hospital practice
+    if (window.LocationService) {
+      window.LocationService.getCities().then(cities => {
+        const docCity = document.getElementById('reg-city');
+        const hospCity = document.getElementById('reg-hosp-city');
+        const opts = cities.map(c => `<option value="${c.id}">${c.city} (${c.state})</option>`).join('');
+        if (docCity) docCity.innerHTML = `<option value="">Select City</option>` + opts;
+        if (hospCity) hospCity.innerHTML = `<option value="">Select City</option>` + opts;
+      });
+    }
 
     function setRegisterRole(role) {
       document.getElementById('reg-role').value = role;
       const patientTab = document.getElementById('role-tab-patient');
       const doctorTab = document.getElementById('role-tab-doctor');
+      const hospitalTab = document.getElementById('role-tab-hospital');
       const docFields = document.getElementById('doctor-extra-fields');
+      const hospFields = document.getElementById('hospital-extra-fields');
+      const notice = document.getElementById('provider-verification-notice');
+      const nameLabel = document.getElementById('label-name');
+
+      // Reset styles
+      patientTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
+      doctorTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
+      hospitalTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
+      docFields.classList.add('hidden');
+      hospFields.classList.add('hidden');
+      notice.classList.add('hidden');
 
       if (role === 'doctor') {
         doctorTab.className = 'py-2.5 text-xs font-bold rounded-xl bg-white text-teal-700 shadow-sm transition';
-        patientTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
         docFields.classList.remove('hidden');
+        notice.classList.remove('hidden');
+        nameLabel.innerText = 'Doctor Full Name & Title';
+      } else if (role === 'hospital') {
+        hospitalTab.className = 'py-2.5 text-xs font-bold rounded-xl bg-white text-sky-700 shadow-sm transition';
+        hospFields.classList.remove('hidden');
+        notice.classList.remove('hidden');
+        nameLabel.innerText = 'Authorized Administrator / Hospital Legal Name';
       } else {
         patientTab.className = 'py-2.5 text-xs font-bold rounded-xl bg-white text-sky-700 shadow-sm transition';
-        doctorTab.className = 'py-2.5 text-xs font-bold rounded-xl text-slate-500 hover:text-slate-800 transition';
-        docFields.classList.add('hidden');
+        nameLabel.innerText = 'Full Legal Name';
       }
       if (window.lucide) window.lucide.createIcons();
     }
@@ -169,24 +318,48 @@
       if (role === 'doctor') {
         payload.specialization = document.getElementById('reg-specialization').value || 'Medical Specialist';
         payload.department_id = document.getElementById('reg-department').value;
-        payload.qualification = document.getElementById('reg-qualification').value || 'MBBS';
+        payload.qualification = document.getElementById('reg-qualification').value || 'MBBS, MD';
         payload.experience_years = Number(document.getElementById('reg-experience').value || 1);
+        payload.medical_registration_number = document.getElementById('reg-council-no').value.trim() || 'MMC-PENDING';
+        payload.medical_council_name = document.getElementById('reg-council-name').value.trim() || 'State Medical Council';
+        payload.consultation_modes = document.getElementById('reg-mode').value;
+        payload.consultation_fee = parseFloat(document.getElementById('reg-fee').value) || 50;
+        payload.city_id = document.getElementById('reg-city').value || null;
+        payload.hospital_name = document.getElementById('reg-affiliation').value.trim() || 'CarePulse Partner Network';
+      } else if (role === 'hospital') {
+        payload.hospital_name = full_name;
+        payload.hospital_type = document.getElementById('reg-hosp-type').value;
+        payload.total_beds = parseInt(document.getElementById('reg-hosp-beds').value, 10) || 50;
+        payload.license_number = document.getElementById('reg-hosp-license').value.trim();
+        payload.emergency_phone = document.getElementById('reg-hosp-emergency').value.trim();
+        payload.city_id = document.getElementById('reg-hosp-city').value || null;
+        payload.pincode = document.getElementById('reg-hosp-pin').value.trim();
+        payload.address = document.getElementById('reg-hosp-address').value.trim();
+        
+        const selectedFacilities = Array.from(document.querySelectorAll('input[name="hosp-facility"]:checked')).map(cb => cb.value);
+        payload.facilities = selectedFacilities.length > 0 ? selectedFacilities : ["ICU", "Emergency 24x7", "Pharmacy"];
       }
 
       const btn = document.getElementById('reg-btn');
       btn.disabled = true;
-      btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Creating Account...';
+      btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Submitting Registration...';
       if (window.lucide) window.lucide.createIcons();
 
       try {
         const result = await window.Auth.register(payload);
         
-        // Auto-login and redirect straight to the user's dashboard
-        try {
-          await window.Auth.login(email, password);
-          window.location.href = `${role}/index.html`;
-        } catch (loginErr) {
-          window.location.href = `login.html?registered=1&email=${encodeURIComponent(email)}`;
+        if (role === 'doctor' || role === 'hospital') {
+          // Provider registration alert
+          alert('Registration Submitted! Your credentials have been received. An administrator will verify your professional license before your profile is published in public search.');
+          window.location.href = `login.html?registered=1&email=${encodeURIComponent(email)}&status=pending`;
+        } else {
+          // Patient auto-login
+          try {
+            await window.Auth.login(email, password);
+            window.location.href = `patient/index.html`;
+          } catch (loginErr) {
+            window.location.href = `login.html?registered=1&email=${encodeURIComponent(email)}`;
+          }
         }
       } catch (err) {
         errText.innerText = err.message || 'Registration failed. Please check your information.';

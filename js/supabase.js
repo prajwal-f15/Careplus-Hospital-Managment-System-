@@ -154,7 +154,120 @@ window.CarePulseDB = {
   // ============================================================================
   async getDoctors(filters = {}) {
     const sb = getSupabaseClient();
-    if (!sb) return [];
+    const CORE_DOCTORS = [
+      {
+        id: 'd0c11111-1111-1111-1111-111111111111',
+        profile_id: '11111111-1111-1111-1111-111111111111',
+        full_name: 'Dr. Rahul Sharma',
+        email: 'rahul.sharma@hospital.com',
+        phone: '+91 9876500002',
+        gender: 'Male',
+        specialization: 'Senior Cardiologist',
+        qualification: 'MBBS, MD (Medicine), DM (Cardiology)',
+        experience_years: 15,
+        department_name: 'Cardiology',
+        department_code: 'CARD',
+        room_number: 'Wing A, OPD 102',
+        consultation_fee: 75.00,
+        rating: 4.9,
+        total_reviews: 42,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2010-0442',
+        registration_year: 2010,
+        consultation_modes: 'both',
+        city_name: 'Mumbai',
+        profile_image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400'
+      },
+      {
+        id: 'd0c22222-2222-2222-2222-222222222222',
+        profile_id: '22222222-2222-2222-2222-222222222222',
+        full_name: 'Dr. Priya Patel',
+        email: 'priya.patel@hospital.com',
+        phone: '+91 9876500004',
+        gender: 'Female',
+        specialization: 'Consultant Neurologist',
+        qualification: 'MBBS, MD, DM (Neurology)',
+        experience_years: 12,
+        department_name: 'Neurology',
+        department_code: 'NEUR',
+        room_number: 'Wing B, Room 204',
+        consultation_fee: 80.00,
+        rating: 4.8,
+        total_reviews: 38,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2012-0881',
+        registration_year: 2012,
+        consultation_modes: 'both',
+        city_name: 'Pune',
+        profile_image: 'https://images.unsplash.com/photo-1594824813629-456cb04c3547?w=400'
+      },
+      {
+        id: 'd0c33333-3333-3333-3333-333333333333',
+        profile_id: '33333333-3333-3333-3333-333333333333',
+        full_name: 'Dr. Vikram Sethi',
+        email: 'vikram.sethi@hospital.com',
+        phone: '+91 9876500005',
+        gender: 'Male',
+        specialization: 'Orthopedic Surgeon',
+        qualification: 'MBBS, MS (Ortho), M.Ch',
+        experience_years: 14,
+        department_name: 'Orthopedics',
+        department_code: 'ORTH',
+        room_number: 'Wing C, Room 301',
+        consultation_fee: 70.00,
+        rating: 4.7,
+        total_reviews: 29,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2011-0329',
+        registration_year: 2011,
+        consultation_modes: 'in_person',
+        city_name: 'Nagpur',
+        profile_image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400'
+      },
+      {
+        id: 'd0c44444-4444-4444-4444-444444444444',
+        profile_id: '44444444-4444-4444-4444-444444444444',
+        full_name: 'Dr. Anand Deshpande',
+        email: 'anand.deshpande@carepulse.local',
+        phone: '+91 94221 99887',
+        gender: 'Male',
+        specialization: 'Consultant Interventional Cardiologist',
+        qualification: 'MBBS, MD (Medicine), DM (Cardiology)',
+        experience_years: 12,
+        department_name: 'Cardiology',
+        department_code: 'CARD',
+        room_number: 'OPD Block 1, Room 104',
+        consultation_fee: 60.00,
+        rating: 4.9,
+        total_reviews: 18,
+        is_verified: true,
+        verification_status: 'approved',
+        is_available_today: true,
+        is_active: true,
+        medical_council_name: 'Maharashtra Medical Council',
+        medical_registration_number: 'MMC-2012-0941',
+        registration_year: 2012,
+        consultation_modes: 'both',
+        city_name: 'Yavatmal',
+        profile_image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400'
+      }
+    ];
+
+    if (!sb) {
+      return filters.includeUnapproved ? CORE_DOCTORS : CORE_DOCTORS.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
+    }
 
     try {
       // 1. Fetch doctors joined with profiles and departments
@@ -243,6 +356,10 @@ window.CarePulseDB = {
             }]).then(() => {}).catch(() => {});
           }
         }
+      }
+
+      if (!filters.includeUnapproved) {
+        list = list.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
       }
 
       return list;
@@ -753,7 +870,20 @@ window.CarePulseDB = {
     return this.bookAppointment(payload);
   },
 
-  async bookAppointment({ patient_id, doctor_id, department_id, appointment_date, time_slot, appointment_time, reason, symptoms, priority = 'normal', status = 'pending' }) {
+  async bookAppointment({
+    patient_id,
+    doctor_id,
+    department_id,
+    appointment_date,
+    time_slot,
+    appointment_time,
+    reason,
+    symptoms,
+    priority = 'normal',
+    status = 'pending',
+    hospital_id = null,
+    referral_id = null
+  }) {
     const sb = getSupabaseClient();
     if (!sb) throw new Error('Supabase client not connected');
 
@@ -919,6 +1049,9 @@ window.CarePulseDB = {
       verification_hash: randomHashToken
     };
 
+    if (hospital_id) insertPayload.hospital_id = hospital_id;
+    if (referral_id) insertPayload.referral_id = referral_id;
+
     let appt = null;
     let apptError = null;
     let attempts = 0;
@@ -929,6 +1062,19 @@ window.CarePulseDB = {
       if (!res.error) {
         appt = res.data;
         apptError = null;
+
+        // If booked via an approved cross-city referral, update referral status
+        if (referral_id) {
+          try {
+            await this.updateReferralStatus({
+              referralId: referral_id,
+              status: 'appointment_booked',
+              decisionReason: `Linked to appointment #${appointment_number}`
+            });
+          } catch (refErr) {
+            console.debug('Referral status link note:', refErr);
+          }
+        }
         break;
       }
 
@@ -3437,6 +3583,724 @@ window.CarePulseDB = {
         .eq('appointment_id', appointmentId)
         .neq('sender_id', currentUserId);
     } catch (e) {}
+  },
+
+  // ============================================================================
+  // MODULE 1 & 3: CITIES, HOSPITALS & LOCATION DIRECTORY
+  // ============================================================================
+  async getCities(filters = {}) {
+    if (window.LocationService) {
+      return await window.LocationService.getCities(filters);
+    }
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+    try {
+      const { data } = await sb.from('cities').select('*').eq('is_active', true);
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async getCityById(id) {
+    if (window.LocationService) {
+      return await window.LocationService.getCityById(id);
+    }
+    const sb = getSupabaseClient();
+    if (!sb) return null;
+    try {
+      const { data } = await sb.from('cities').select('*').eq('id', id).maybeSingle();
+      return data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async getHospitals(filters = {}) {
+    const sb = getSupabaseClient();
+    const CORE_HOSPITALS = [
+      {
+        id: 'c0000000-0000-0000-0000-000000000001',
+        name: 'CarePulse Central Hospital',
+        hospital_type: 'Super-specialty',
+        registration_number: 'REG-MH-MUM-2021-089',
+        license_number: 'LIC-MCGM-HOSP-4491',
+        city_id: '10000000-0000-0000-0000-000000000001',
+        address: '742 Healthcare Boulevard, Bandra West, Mumbai',
+        city_name: 'Mumbai',
+        district_name: 'Mumbai',
+        state_name: 'Maharashtra',
+        pincode: '400050',
+        latitude: 19.0596,
+        longitude: 72.8295,
+        email: 'contact@carepulse.hospital',
+        phone: '+91 22 4910 8000',
+        emergency_phone: '+91 22 4910 9999',
+        website: 'https://carepulse.hospital',
+        logo_url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400',
+        cover_image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=800',
+        facilities: ["ICU", "Emergency 24x7", "Cardiac Cath Lab", "MRI / CT Scan", "Pharmacy 24x7", "Dialysis", "Blood Bank", "Advanced Trauma Care"],
+        total_beds: 350,
+        verification_status: 'approved',
+        is_active: true
+      },
+      {
+        id: 'c0000000-0000-0000-0000-000000000002',
+        name: 'CarePulse District Multi-Specialty Hospital',
+        hospital_type: 'Private Multi-specialty',
+        registration_number: 'REG-MH-YTL-2022-014',
+        license_number: 'LIC-DHS-YTL-1082',
+        city_id: '10000000-0000-0000-0000-000000000004',
+        address: 'Station Road, Near Civil Lines, Yavatmal',
+        city_name: 'Yavatmal',
+        district_name: 'Yavatmal',
+        state_name: 'Maharashtra',
+        pincode: '445001',
+        latitude: 20.3888,
+        longitude: 78.1204,
+        email: 'yavatmal@carepulse.hospital',
+        phone: '+91 7232 254100',
+        emergency_phone: '+91 7232 254108',
+        website: 'https://carepulse.hospital/yavatmal',
+        logo_url: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400',
+        cover_image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800',
+        facilities: ["Emergency 24x7", "ICU", "Pharmacy", "Laboratory", "General Surgery", "Pediatrics", "Digital X-Ray", "Teleconsultation Room"],
+        total_beds: 120,
+        verification_status: 'approved',
+        is_active: true
+      },
+      {
+        id: 'c0000000-0000-0000-0000-000000000003',
+        name: 'CarePulse Metro Specialty Center',
+        hospital_type: 'Super-specialty',
+        registration_number: 'REG-MH-PUN-2020-045',
+        license_number: 'LIC-PMC-HOSP-7781',
+        city_id: '10000000-0000-0000-0000-000000000002',
+        address: 'FC Road, Shivaji Nagar, Pune',
+        city_name: 'Pune',
+        district_name: 'Pune',
+        state_name: 'Maharashtra',
+        pincode: '411005',
+        latitude: 18.5314,
+        longitude: 73.8446,
+        email: 'pune@carepulse.hospital',
+        phone: '+91 20 2567 1100',
+        emergency_phone: '+91 20 2567 1199',
+        website: 'https://carepulse.hospital/pune',
+        logo_url: 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=400',
+        cover_image: 'https://images.unsplash.com/photo-1512678080530-7760d81faba6?w=800',
+        facilities: ["ICU", "NICU", "Emergency 24x7", "Pharmacy", "Robotic Surgery", "Oncology Wing"],
+        total_beds: 220,
+        verification_status: 'approved',
+        is_active: true
+      },
+      {
+        id: 'c0000000-0000-0000-0000-000000000004',
+        name: 'CarePulse Regional Medical Institute',
+        hospital_type: 'Super-specialty',
+        registration_number: 'REG-MH-NGP-2023-102',
+        license_number: 'LIC-NMC-HOSP-3312',
+        city_id: '10000000-0000-0000-0000-000000000003',
+        address: 'Central Avenue, Ramdaspeth, Nagpur',
+        city_name: 'Nagpur',
+        district_name: 'Nagpur',
+        state_name: 'Maharashtra',
+        pincode: '440010',
+        latitude: 21.1352,
+        longitude: 79.0722,
+        email: 'nagpur@carepulse.hospital',
+        phone: '+91 712 245 8800',
+        emergency_phone: '+91 712 245 8899',
+        website: 'https://carepulse.hospital/nagpur',
+        logo_url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400',
+        cover_image: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=800',
+        facilities: ["Trauma Care", "Neurology ICU", "Emergency 24x7", "Pharmacy", "Advanced Diagnostic Wing"],
+        total_beds: 280,
+        verification_status: 'approved',
+        is_active: true
+      }
+    ];
+
+    if (!sb) return CORE_HOSPITALS;
+
+    try {
+      let query = sb
+        .from('hospitals')
+        .select(`
+          *,
+          cities (
+            id,
+            state_name,
+            district_name,
+            city_name,
+            pincode,
+            latitude,
+            longitude
+          )
+        `);
+
+      if (!filters.includeUnapproved) {
+        query = query.eq('verification_status', 'approved').eq('is_active', true);
+      }
+      if (filters.cityId) {
+        query = query.eq('city_id', filters.cityId);
+      }
+      if (filters.hospitalType) {
+        query = query.eq('hospital_type', filters.hospitalType);
+      }
+
+      const { data, error } = await query.order('name', { ascending: true });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data.map(h => ({
+          ...h,
+          city_name: h.cities?.city_name || h.district_name || 'Mumbai',
+          district_name: h.cities?.district_name || h.district_name || 'Mumbai',
+          state_name: h.cities?.state_name || h.state_name || 'Maharashtra',
+          pincode: h.cities?.pincode || h.pincode || '',
+          latitude: Number(h.latitude || h.cities?.latitude || 19.0760),
+          longitude: Number(h.longitude || h.cities?.longitude || 72.8777)
+        }));
+      }
+    } catch (e) {
+      console.warn('Supabase getHospitals note:', e.message);
+    }
+
+    return CORE_HOSPITALS;
+  },
+
+  async getHospitalById(id) {
+    const list = await this.getHospitals({ includeUnapproved: true });
+    return list.find(h => h.id === id) || null;
+  },
+
+  async getDoctorHospitals(doctorId) {
+    const sb = getSupabaseClient();
+    if (!sb) return [];
+    try {
+      const { data, error } = await sb
+        .from('doctor_hospitals')
+        .select(`
+          *,
+          hospitals (*)
+        `)
+        .eq('doctor_id', doctorId)
+        .eq('affiliation_status', 'approved');
+
+      if (!error && Array.isArray(data) && data.length > 0) return data;
+    } catch (e) {}
+
+    return [{
+      doctor_id: doctorId,
+      hospital_id: 'c0000000-0000-0000-0000-000000000001',
+      hospital_name: 'CarePulse Central Hospital',
+      is_primary: true,
+      affiliation_status: 'approved'
+    }];
+  },
+
+  async getHospitalDoctors(hospitalId) {
+    const sb = getSupabaseClient();
+    const allDocs = await this.getDoctors();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('doctor_hospitals')
+          .select('doctor_id, opd_room, consultation_fee, is_primary')
+          .eq('hospital_id', hospitalId)
+          .eq('affiliation_status', 'approved');
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const docMap = new Map(allDocs.map(d => [d.id, d]));
+          const matched = data.map(dh => {
+            const doc = docMap.get(dh.doctor_id);
+            if (!doc) return null;
+            return {
+              ...doc,
+              room_number: dh.opd_room || doc.room_number || 'OPD-1',
+              consultation_fee: dh.consultation_fee || doc.consultation_fee || 50,
+              is_primary_hospital: dh.is_primary === true
+            };
+          }).filter(Boolean);
+          if (matched.length > 0) return matched;
+        }
+      } catch (e) {
+        console.warn('getHospitalDoctors note:', e.message);
+      }
+    }
+    // Fallback: match doctors to hospital city or return top doctors
+    const hosp = await this.getHospitalById(hospitalId);
+    if (hosp && hosp.city_name) {
+      const cityDocs = allDocs.filter(d => d.city_name && d.city_name.toLowerCase() === hosp.city_name.toLowerCase());
+      if (cityDocs.length > 0) return cityDocs;
+    }
+    return allDocs.slice(0, 4);
+  },
+
+  async searchDoctorsByLocation(options = {}) {
+    const doctors = await this.getDoctors();
+    let approved = doctors.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
+
+    if (options.specialty) {
+      const spec = options.specialty.toLowerCase();
+      approved = approved.filter(d =>
+        (d.specialization && d.specialization.toLowerCase().includes(spec)) ||
+        (d.department_name && d.department_name.toLowerCase().includes(spec))
+      );
+    }
+
+    if (options.consultationMode && options.consultationMode !== 'all') {
+      const mode = options.consultationMode;
+      approved = approved.filter(d => {
+        const dMode = d.consultation_modes || 'both';
+        return dMode === 'both' || dMode === mode;
+      });
+    }
+
+    if (options.city) {
+      const c = options.city.toLowerCase();
+      approved = approved.filter(d =>
+        (d.city_name && d.city_name.toLowerCase() === c) ||
+        (d.address && d.address.toLowerCase().includes(c)) ||
+        (d.hospital_name && d.hospital_name.toLowerCase().includes(c))
+      );
+    }
+
+    if (options.userLat && options.userLng && window.LocationService) {
+      const radius = options.radiusKm || 50;
+      approved = window.LocationService.filterNearby(approved, options.userLat, options.userLng, radius);
+    }
+
+    return approved;
+  },
+
+  async searchHospitalsByLocation(options = {}) {
+    const hospitals = await this.getHospitals();
+    let approved = hospitals.filter(h => (h.verification_status || 'approved') === 'approved' && h.is_active !== false);
+
+    if (options.search) {
+      const q = options.search.toLowerCase();
+      approved = approved.filter(h =>
+        (h.name && h.name.toLowerCase().includes(q)) ||
+        (h.city_name && h.city_name.toLowerCase().includes(q)) ||
+        (h.district_name && h.district_name.toLowerCase().includes(q)) ||
+        (h.address && h.address.toLowerCase().includes(q)) ||
+        (h.facilities && JSON.stringify(h.facilities).toLowerCase().includes(q))
+      );
+    }
+
+    if (options.state && options.state !== 'all') {
+      const st = options.state.toLowerCase();
+      approved = approved.filter(h => h.state_name && h.state_name.toLowerCase() === st);
+    }
+
+    if (options.city && options.city !== 'all') {
+      const c = options.city.toLowerCase();
+      approved = approved.filter(h =>
+        (h.city_name && h.city_name.toLowerCase() === c) ||
+        (h.district_name && h.district_name.toLowerCase() === c) ||
+        (h.address && h.address.toLowerCase().includes(c))
+      );
+    }
+
+    if (options.hospitalType && options.hospitalType !== 'all') {
+      const ht = options.hospitalType.toLowerCase();
+      approved = approved.filter(h => h.hospital_type && h.hospital_type.toLowerCase() === ht);
+    }
+
+    if (options.facility && options.facility !== 'all') {
+      const fac = options.facility.toLowerCase();
+      approved = approved.filter(h =>
+        h.facilities && JSON.stringify(h.facilities).toLowerCase().includes(fac)
+      );
+    }
+
+    if (options.userLat && options.userLng && window.LocationService) {
+      const radius = options.radiusKm || 0;
+      if (radius > 0) {
+        approved = window.LocationService.filterNearby(approved, options.userLat, options.userLng, radius);
+      }
+    }
+
+    return approved;
+  },
+
+  // ============================================================================
+  // MODULE 2, 3 & 4: INDEPENDENT REGISTRATION & ADMIN VERIFICATION
+  // ============================================================================
+  async verifyDoctor({ doctorId, adminId, decision, reason }) {
+    if (!reason || !reason.trim()) {
+      throw new Error('Mandatory justification reason is required for administrative audit.');
+    }
+    const validDecisions = ['approved', 'rejected', 'under_review', 'suspended'];
+    if (!validDecisions.includes(decision)) {
+      throw new Error(`Invalid verification decision. Must be one of: ${validDecisions.join(', ')}`);
+    }
+
+    // Strict No Self-Approval Guard
+    if (doctorId === adminId) {
+      throw new Error('Self-approval violation: Administrators cannot verify or approve their own professional profile.');
+    }
+    const doc = await this.getDoctorById(doctorId);
+    if (doc && (doc.profile_id === adminId || doc.id === adminId)) {
+      throw new Error('Self-approval violation: Administrators cannot verify or approve their own professional profile.');
+    }
+
+    const sb = getSupabaseClient();
+    const isVerified = (decision === 'approved');
+
+    if (sb) {
+      try {
+        await sb.from('doctors').update({
+          verification_status: decision,
+          is_verified: isVerified,
+          admin_reviewed_by: adminId,
+          admin_review_reason: reason.trim(),
+          admin_reviewed_at: new Date().toISOString()
+        }).eq('id', doctorId);
+      } catch (e) {
+        console.warn('verifyDoctor db update note:', e.message);
+      }
+    }
+
+    if (doc) {
+      doc.verification_status = decision;
+      doc.is_verified = isVerified;
+    }
+
+    await this.logAuditEvent({
+      action: `doctor_verification_${decision}`,
+      entity_type: 'doctor',
+      entity_id: doctorId,
+      details: {
+        adminId,
+        decision,
+        reason: reason.trim(),
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    return { success: true, doctorId, decision, reason: reason.trim() };
+  },
+
+  async verifyHospital({ hospitalId, adminId, decision, reason }) {
+    if (!reason || !reason.trim()) {
+      throw new Error('Mandatory justification reason is required for administrative audit.');
+    }
+    const validDecisions = ['approved', 'rejected', 'under_review', 'suspended'];
+    if (!validDecisions.includes(decision)) {
+      throw new Error(`Invalid verification decision. Must be one of: ${validDecisions.join(', ')}`);
+    }
+
+    // Strict No Self-Approval Guard
+    if (hospitalId === adminId) {
+      throw new Error('Self-approval violation: Administrators cannot verify or approve their own hospital registration.');
+    }
+    const hosp = await this.getHospitalById(hospitalId);
+    if (hosp && hosp.profile_id === adminId) {
+      throw new Error('Self-approval violation: Administrators cannot verify or approve their own hospital registration.');
+    }
+
+    const sb = getSupabaseClient();
+    const isActive = (decision === 'approved');
+
+    if (sb) {
+      try {
+        await sb.from('hospitals').update({
+          verification_status: decision,
+          is_active: isActive,
+          admin_reviewed_by: adminId,
+          admin_review_reason: reason.trim(),
+          admin_reviewed_at: new Date().toISOString()
+        }).eq('id', hospitalId);
+      } catch (e) {
+        console.warn('verifyHospital db update note:', e.message);
+      }
+    }
+
+    if (hosp) {
+      hosp.verification_status = decision;
+      hosp.is_active = isActive;
+    }
+
+    await this.logAuditEvent({
+      action: `hospital_verification_${decision}`,
+      entity_type: 'hospital',
+      entity_id: hospitalId,
+      details: {
+        adminId,
+        decision,
+        reason: reason.trim(),
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    return { success: true, hospitalId, decision, reason: reason.trim() };
+  },
+
+  async registerHospital({
+    name,
+    hospital_type = 'Private Multi-specialty',
+    email,
+    phone,
+    emergency_phone,
+    address,
+    city_id,
+    city_name,
+    district_name,
+    state_name,
+    pincode,
+    license_number,
+    registration_number,
+    facilities = [],
+    total_beds = 50,
+    authorized_person_name,
+    authorized_person_designation,
+    logo_url,
+    documents = []
+  }) {
+    const sb = getSupabaseClient();
+    const newHospitalId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'hosp-' + Date.now();
+
+    const hospRecord = {
+      id: newHospitalId,
+      name,
+      hospital_type,
+      email: email || '',
+      phone: phone || '',
+      emergency_phone: emergency_phone || phone || '',
+      address,
+      city_id: city_id || null,
+      district_name: district_name || city_name || '',
+      state_name: state_name || 'Maharashtra',
+      pincode: pincode || '',
+      license_number: license_number || '',
+      registration_number: registration_number || '',
+      facilities: facilities.length > 0 ? facilities : ["ICU", "Emergency 24x7", "Pharmacy", "Laboratory"],
+      total_beds: parseInt(total_beds, 10) || 50,
+      authorized_person_name: authorized_person_name || '',
+      authorized_person_designation: authorized_person_designation || 'Administrator',
+      logo_url: logo_url || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400',
+      verification_status: 'pending',
+      is_active: false,
+      created_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        await sb.from('hospitals').insert(hospRecord);
+      } catch (e) {
+        console.warn('registerHospital insert note:', e.message);
+      }
+    }
+
+    return hospRecord;
+  },
+
+  // ============================================================================
+  // MODULE 6: CROSS-CITY REFERRAL SYSTEM ENGINE
+  // ============================================================================
+  async recordPatientConsent({ patientId, referralId, grantedToDoctorId, consentType = 'medical_record_sharing' }) {
+    const sb = getSupabaseClient();
+    const consentRecord = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'consent-' + Date.now(),
+      patient_id: patientId,
+      referral_id: referralId || null,
+      consent_type: consentType,
+      granted_to_doctor_id: grantedToDoctorId || null,
+      is_consent_active: true,
+      consent_timestamp: new Date().toISOString(),
+      ip_address: '127.0.0.1',
+      user_agent: (typeof navigator !== 'undefined') ? navigator.userAgent : 'CarePulse-Client'
+    };
+
+    if (sb) {
+      try {
+        await sb.from('patient_consent_records').insert([consentRecord]);
+      } catch (e) {
+        console.warn('recordPatientConsent note:', e.message);
+      }
+    }
+    return consentRecord;
+  },
+
+  async createReferralRequest({
+    patientId,
+    referringDoctorId = null,
+    receivingDoctorId,
+    originCity,
+    destinationCity,
+    specialty,
+    clinicalSummary = '',
+    provisionalDiagnosis = '',
+    referralUrgency = 'routine',
+    consentGiven = false
+  }) {
+    if (!consentGiven) {
+      throw new Error('Mandatory Patient Consent Violation: Explicit patient consent is required before sharing clinical history or dispatching a referral.');
+    }
+    if (!receivingDoctorId) {
+      throw new Error('Receiving doctor ID is required for cross-city referral dispatch.');
+    }
+
+    const sb = getSupabaseClient();
+    const referralId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'ref-' + Date.now();
+    const referralRecord = {
+      id: referralId,
+      patient_id: patientId,
+      referring_doctor_id: referringDoctorId,
+      receiving_doctor_id: receivingDoctorId,
+      origin_city: originCity || 'Yavatmal',
+      destination_city: destinationCity || 'Mumbai',
+      specialty_required: specialty || 'Specialist Consultation',
+      clinical_summary: clinicalSummary,
+      provisional_diagnosis: provisionalDiagnosis,
+      referral_urgency: referralUrgency,
+      status: 'requested',
+      patient_consent_given: true,
+      patient_consent_timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        await sb.from('cross_city_referrals').insert([referralRecord]);
+      } catch (e) {
+        console.warn('createReferralRequest note:', e.message);
+      }
+    }
+
+    // Record digital consent record
+    await this.recordPatientConsent({
+      patientId,
+      referralId,
+      grantedToDoctorId: receivingDoctorId,
+      consentType: 'medical_record_sharing'
+    });
+
+    // Notify receiving doctor
+    if (this.createNotification) {
+      await this.createNotification({
+        userId: receivingDoctorId,
+        title: 'New Cross-City Referral Request',
+        message: `Patient referral requested from ${originCity || 'Local City'} for ${specialty || 'Consultation'}.`,
+        type: 'referral',
+        link: 'doctor/referrals.html'
+      }).catch(() => {});
+    }
+
+    await this.logAuditEvent({
+      action: 'referral_created',
+      entity_type: 'cross_city_referral',
+      entity_id: referralId,
+      details: {
+        patientId,
+        receivingDoctorId,
+        originCity,
+        destinationCity,
+        specialty
+      }
+    });
+
+    return referralRecord;
+  },
+
+  async getReferrals(filters = {}) {
+    const sb = getSupabaseClient();
+    const CORE_REFERRALS = [
+      {
+        id: 'ref-demo-001',
+        patient_id: '99999999-9999-9999-9999-999999999991',
+        patient_name: 'John Doe',
+        referring_doctor_id: null,
+        receiving_doctor_id: '11111111-1111-1111-1111-111111111111',
+        origin_city: 'Yavatmal',
+        destination_city: 'Mumbai',
+        specialty_required: 'Senior Cardiologist',
+        clinical_summary: 'Recurrent angina on exertion; local clinic recommended super-specialist cardiology evaluation in Mumbai.',
+        provisional_diagnosis: 'Suspected Coronary Artery Disease',
+        referral_urgency: 'routine',
+        status: 'requested',
+        patient_consent_given: true,
+        patient_consent_timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      }
+    ];
+
+    if (!sb) return CORE_REFERRALS;
+
+    try {
+      let query = sb
+        .from('cross_city_referrals')
+        .select(`
+          *,
+          patient:patient_id (id, full_name, email, phone),
+          receiving_doctor:receiving_doctor_id (id, specialization, profiles (full_name)),
+          referring_doctor:referring_doctor_id (id, specialization, profiles (full_name))
+        `);
+
+      if (filters.patientId) {
+        query = query.eq('patient_id', filters.patientId);
+      }
+      if (filters.doctorId) {
+        query = query.or(`receiving_doctor_id.eq.${filters.doctorId},referring_doctor_id.eq.${filters.doctorId}`);
+      }
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data.map(r => ({
+          ...r,
+          patient_name: r.patient?.full_name || 'Patient',
+          receiving_doctor_name: r.receiving_doctor?.profiles?.full_name || 'Dr. Specialist',
+          referring_doctor_name: r.referring_doctor?.profiles?.full_name || 'Referring Physician'
+        }));
+      }
+    } catch (e) {
+      console.warn('getReferrals note:', e.message);
+    }
+
+    return CORE_REFERRALS;
+  },
+
+  async updateReferralStatus({ referralId, status, decisionReason = '', doctorId }) {
+    const validStatuses = ['requested', 'under_review', 'accepted', 'rejected', 'cancelled', 'appointment_booked', 'completed', 'closed'];
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid referral status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    const sb = getSupabaseClient();
+    const payload = {
+      status,
+      decision_reason: decisionReason,
+      reviewed_by_doctor_id: doctorId || null,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        await sb.from('cross_city_referrals').update(payload).eq('id', referralId);
+      } catch (e) {
+        console.warn('updateReferralStatus note:', e.message);
+      }
+    }
+
+    await this.logAuditEvent({
+      action: `referral_status_${status}`,
+      entity_type: 'cross_city_referral',
+      entity_id: referralId,
+      details: {
+        status,
+        decisionReason,
+        doctorId
+      }
+    });
+
+    return { success: true, referralId, status, decisionReason };
   }
 };
 

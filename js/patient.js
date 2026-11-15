@@ -595,6 +595,9 @@ window.PatientApp = {
       const familyMemberId = (familyVal && familyVal !== 'self') ? familyVal : null;
 
       try {
+        const preReferralId = urlParams.get('referralId') || null;
+        const preHospitalId = urlParams.get('hospitalId') || null;
+
         const appointment = await window.CarePulseDB.createAppointment({
           patient_id: this.currentUser.id,
           family_member_id: familyMemberId,
@@ -602,7 +605,9 @@ window.PatientApp = {
           appointment_date: this.bookingState.date,
           appointment_time: this.bookingState.time,
           reason: reason.trim(),
-          symptoms: symptoms ? symptoms.trim() : ''
+          symptoms: symptoms ? symptoms.trim() : '',
+          referral_id: preReferralId,
+          hospital_id: preHospitalId
         });
 
         // Show Booking Request Modal (Pending Doctor Confirmation)

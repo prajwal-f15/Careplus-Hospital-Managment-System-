@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cross-City Referral Inbox - Doctor Portal - CarePulse</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-teal-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-teal-700">Doctor Portal</span>
+          </div>
+        </a>
+
+        <!-- Navigation Links -->
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="queue.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Live Queue</a>
+          <a href="appointments.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="referrals.html" class="text-teal-600 flex items-center gap-1.5 font-bold"><i data-lucide="git-pull-request" class="w-4 h-4"></i> Referrals</a>
+          <a href="schedule.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="clock" class="w-4 h-4"></i> Schedule</a>
+          <a href="leaves.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-off" class="w-4 h-4"></i> Leaves</a>
+          <a href="patients.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
+          <a href="reviews.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="star" class="w-4 h-4"></i> Reviews</a>
+          <a href="profile.html" class="hover:text-teal-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Cross-City Referral Review Center</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Evaluate patient cases dispatched from other Indian cities, review clinical summaries, and accept or decline.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1.5">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Consent-Gated Records
+        </span>
+      </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-200 pb-3 flex-wrap text-xs font-bold">
+      <button type="button" data-tab="pending" class="tab-btn px-4 py-2 rounded-xl bg-teal-600 text-white shadow-sm transition">
+        Pending Review (<span id="tab-count-pending">0</span>)
+      </button>
+      <button type="button" data-tab="accepted" class="tab-btn px-4 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">
+        Accepted Referrals (<span id="tab-count-accepted">0</span>)
+      </button>
+      <button type="button" data-tab="rejected" class="tab-btn px-4 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">
+        Declined (<span id="tab-count-rejected">0</span>)
+      </button>
+      <button type="button" data-tab="all" class="tab-btn px-4 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">
+        All History (<span id="tab-count-all">0</span>)
+      </button>
+    </div>
+
+    <!-- Referrals Table/List Container -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="referrals-container" class="divide-y divide-slate-100">
+        <div class="p-12 text-center text-xs text-slate-400">Loading incoming referrals...</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- DECLINE REFERRAL MODAL (MODULE 6) -->
+  <div id="decline-referral-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <i data-lucide="x-circle" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-slate-900">Decline Referral Request</h3>
+            <p class="text-[10px] text-slate-400">Mandatory medical rationale required</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-decline-modal" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-600 leading-relaxed">
+          Please provide a clear clinical or logistical reason for declining this referral. The patient and referring clinic will be notified with this rationale:
+        </p>
+        <textarea id="decline-reason-text" rows="3" placeholder="e.g. Specialist fully booked; recommend local cardiologist in Amravati or Dr. Kulkarni at Yavatmal Heart Institute..." class="w-full p-3 rounded-xl border border-slate-200 text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" required></textarea>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+        <button type="button" id="btn-cancel-decline" class="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+        <button type="button" id="btn-confirm-decline" class="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition">
+          Confirm Decline
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Auth Guard: Require Doctor
+      if (window.Auth && !window.Auth.requireAuth(['doctor'])) return;
+
+      const user = window.Auth ? window.Auth.getCurrentUser() : null;
+      const referralsContainer = document.getElementById('referrals-container');
+      const tabCountPending = document.getElementById('tab-count-pending');
+      const tabCountAccepted = document.getElementById('tab-count-accepted');
+      const tabCountRejected = document.getElementById('tab-count-rejected');
+      const tabCountAll = document.getElementById('tab-count-all');
+      const tabBtns = document.querySelectorAll('.tab-btn');
+
+      const declineModal = document.getElementById('decline-referral-modal');
+      const closeDeclineBtn = document.getElementById('btn-close-decline-modal');
+      const cancelDeclineBtn = document.getElementById('btn-cancel-decline');
+      const confirmDeclineBtn = document.getElementById('btn-confirm-decline');
+      const declineReasonInput = document.getElementById('decline-reason-text');
+
+      let currentTab = 'pending';
+      let cachedReferrals = [];
+      let pendingDeclineId = null;
+
+      const closeDeclineModal = () => {
+        declineModal.classList.add('hidden');
+        declineReasonInput.value = '';
+        pendingDeclineId = null;
+      };
+
+      closeDeclineBtn.addEventListener('click', closeDeclineModal);
+      cancelDeclineBtn.addEventListener('click', closeDeclineModal);
+
+      // Tab switching
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => {
+            b.classList.remove('bg-teal-600', 'text-white', 'shadow-sm');
+            b.classList.add('text-slate-600');
+          });
+          btn.classList.add('bg-teal-600', 'text-white', 'shadow-sm');
+          btn.classList.remove('text-slate-600');
+
+          currentTab = btn.getAttribute('data-tab');
+          renderReferrals();
+        });
+      });
+
+      async function loadDoctorReferrals() {
+        referralsContainer.innerHTML = '<div class="p-12 text-center text-xs text-slate-400">Loading incoming referrals...</div>';
+
+        try {
+          // Fetch referrals assigned to this doctor or general
+          const doctorId = user?.doctor_id || user?.id;
+          cachedReferrals = await window.CarePulseDB.getReferrals({ doctorId });
+          updateTabCounts();
+          renderReferrals();
+        } catch (err) {
+          console.error('Error fetching doctor referrals:', err);
+          referralsContainer.innerHTML = `<div class="p-12 text-center text-xs text-rose-500 font-bold">Failed to load referrals: ${err.message}</div>`;
+        }
+      }
+
+      function updateTabCounts() {
+        const pending = cachedReferrals.filter(r => r.status === 'requested' || r.status === 'under_review');
+        const accepted = cachedReferrals.filter(r => r.status === 'accepted' || r.status === 'appointment_booked' || r.status === 'completed');
+        const rejected = cachedReferrals.filter(r => r.status === 'rejected');
+
+        tabCountPending.textContent = pending.length;
+        tabCountAccepted.textContent = accepted.length;
+        tabCountRejected.textContent = rejected.length;
+        tabCountAll.textContent = cachedReferrals.length;
+      }
+
+      function renderReferrals() {
+        let filtered = cachedReferrals;
+        if (currentTab === 'pending') {
+          filtered = cachedReferrals.filter(r => r.status === 'requested' || r.status === 'under_review');
+        } else if (currentTab === 'accepted') {
+          filtered = cachedReferrals.filter(r => r.status === 'accepted' || r.status === 'appointment_booked' || r.status === 'completed');
+        } else if (currentTab === 'rejected') {
+          filtered = cachedReferrals.filter(r => r.status === 'rejected');
+        }
+
+        if (filtered.length === 0) {
+          referralsContainer.innerHTML = `
+            <div class="p-12 text-center space-y-2">
+              <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                <i data-lucide="inbox" class="w-5 h-5"></i>
+              </div>
+              <h4 class="font-bold text-xs text-slate-800">No referrals in this view</h4>
+              <p class="text-[11px] text-slate-500">Cross-city patient requests will appear here when patients or referring doctors submit them.</p>
+            </div>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+          return;
+        }
+
+        referralsContainer.innerHTML = filtered.map(r => {
+          const isPending = (r.status === 'requested' || r.status === 'under_review');
+          const createdDate = new Date(r.created_at || Date.now()).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+
+          return `
+            <div class="p-6 flex flex-col md:flex-row md:items-start justify-between gap-6 hover:bg-slate-50/60 transition">
+              <div class="space-y-3 flex-grow">
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="px-2.5 py-1 rounded-xl text-[10px] font-black bg-slate-900 text-white uppercase tracking-wider">
+                    ${r.origin_city || 'Yavatmal'} ➔ ${r.destination_city || 'Mumbai'}
+                  </span>
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                    r.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    r.status === 'rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    'bg-amber-50 text-amber-700 border border-amber-200'
+                  }">
+                    ${r.status === 'accepted' ? '✓ Accepted' : r.status === 'rejected' ? 'Declined' : 'Pending Review'}
+                  </span>
+                  <span class="text-[11px] text-slate-400 font-medium">Received: ${createdDate}</span>
+                  ${r.patient_consent_given ? `
+                    <span class="text-[11px] text-teal-700 font-bold flex items-center gap-1" title="Digital Consent Active">
+                      <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Patient Consent Verified
+                    </span>
+                  ` : ''}
+                </div>
+
+                <div>
+                  <h4 class="font-black text-sm text-slate-900">Patient: ${r.patient_name || 'Patient'}</h4>
+                  <p class="text-xs text-slate-600 mt-0.5">
+                    <strong>Specialty:</strong> ${r.specialty_required || 'Specialist Consultation'}
+                  </p>
+                  <div class="mt-2 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Provisional Clinical Summary:</span>
+                    <p class="italic leading-relaxed">"${r.clinical_summary || 'No detailed clinical notes provided.'}"</p>
+                  </div>
+
+                  ${r.decision_reason ? `
+                    <div class="mt-2 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900">
+                      <strong>Decision Rationale:</strong> ${r.decision_reason}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Actions for Doctor -->
+              <div class="shrink-0 flex items-center gap-2 self-start md:self-center">
+                ${isPending ? `
+                  <button type="button" onclick="acceptReferral('${r.id}')" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5">
+                    <i data-lucide="check" class="w-4 h-4 stroke-[3]"></i> Accept Referral
+                  </button>
+                  <button type="button" onclick="openDeclineModal('${r.id}')" class="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5">
+                    <i data-lucide="x" class="w-4 h-4"></i> Decline
+                  </button>
+                ` : `
+                  <span class="text-xs font-semibold text-slate-400">Review Concluded</span>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      window.acceptReferral = async (referralId) => {
+        if (!confirm('Accept this cross-city referral? The patient will be notified and granted access to book a consultation slot.')) return;
+
+        try {
+          await window.CarePulseDB.updateReferralStatus({
+            referralId,
+            status: 'accepted',
+            decisionReason: 'Case reviewed and approved for consultation.',
+            doctorId: user?.doctor_id || user?.id
+          });
+          alert('✓ Referral accepted! Patient notified to proceed with booking.');
+          await loadDoctorReferrals();
+        } catch (err) {
+          alert('Error accepting referral: ' + err.message);
+        }
+      };
+
+      window.openDeclineModal = (referralId) => {
+        pendingDeclineId = referralId;
+        declineModal.classList.remove('hidden');
+      };
+
+      confirmDeclineBtn.addEventListener('click', async () => {
+        const reason = declineReasonInput.value.trim();
+        if (!reason) {
+          alert('Mandatory Justification: Please provide a clinical or scheduling reason for declining this referral.');
+          return;
+        }
+
+        try {
+          await window.CarePulseDB.updateReferralStatus({
+            referralId: pendingDeclineId,
+            status: 'rejected',
+            decisionReason: reason,
+            doctorId: user?.doctor_id || user?.id
+          });
+          alert('Referral declined. Written rationale recorded for patient transparency.');
+          closeDeclineModal();
+          await loadDoctorReferrals();
+        } catch (err) {
+          alert('Error declining referral: ' + err.message);
+        }
+      });
+
+      await loadDoctorReferrals();
+
+      if (window.CarePulseDB?.enableAutoRealtimeSync) {
+        window.CarePulseDB.enableAutoRealtimeSync({
+          tables: ['cross_city_referrals'],
+          intervalMs: 15000,
+          onRefresh: loadDoctorReferrals
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -178,6 +178,10 @@ window.generateAppointmentReceiptPDF = async function(appointment) {
   renderRow('Consultation Room:', appointment.room_number || 'Room 101');
   renderRow('Scheduled Date:', appointment.appointment_date);
   renderRow('Scheduled Slot:', appointment.time_slot || appointment.appointment_time || '09:00 AM');
+  renderRow('Hospital Facility:', (appointment.hospital_name || 'CarePulse Central Hospital').substring(0, 24));
+  if (appointment.referral_id) {
+    renderRow('Referral Track ID:', `#${appointment.referral_id.slice(0, 12)}`);
+  }
   renderRow('Reason for Visit:', (appointment.reason || 'General Health Checkup').substring(0, 24));
 
   // 5. Verification Notice
