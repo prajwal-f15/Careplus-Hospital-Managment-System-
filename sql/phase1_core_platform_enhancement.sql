@@ -65,3 +65,4 @@ ALTER TABLE public.appointments
 
 CREATE INDEX IF NOT EXISTS idx_appointments_hospital_lookup
   ON public.appointments(hospital_id, appointment_date, status);
+

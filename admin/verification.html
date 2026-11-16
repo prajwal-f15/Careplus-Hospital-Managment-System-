@@ -250,7 +250,7 @@
   </main>
 
   <!-- VERIFICATION REVIEW MODAL (Module 4) -->
-  <div id="review-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="review-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-100 pb-4">
         <div class="flex items-center gap-3">
@@ -598,9 +598,16 @@
               <td class="py-3 px-4 text-[11px] font-semibold text-slate-600">${modeLabel}</td>
               <td class="py-3 px-4">${badge}</td>
               <td class="py-3 px-4 text-right">
-                <button onclick="window.VerificationAdmin.openReview('doctor', '${d.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
-                  Review
-                </button>
+                <div class="flex items-center justify-end gap-1.5">
+                  ${st !== 'approved' ? `
+                    <button onclick="window.VerificationAdmin.quickApprove('doctor', '${d.id}', '${(d.full_name || 'Doctor').replace(/'/g, "\\'")}')" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition flex items-center gap-1 shadow-sm" title="Quick Approve Doctor">
+                      <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                    </button>
+                  ` : ''}
+                  <button onclick="window.VerificationAdmin.openReview('doctor', '${d.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
+                    Review
+                  </button>
+                </div>
               </td>
             </tr>
           `;
@@ -671,9 +678,16 @@
               </td>
               <td class="py-3 px-4">${badge}</td>
               <td class="py-3 px-4 text-right">
-                <button onclick="window.VerificationAdmin.openReview('hospital', '${h.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
-                  Review
-                </button>
+                <div class="flex items-center justify-end gap-1.5">
+                  ${st !== 'approved' ? `
+                    <button onclick="window.VerificationAdmin.quickApprove('hospital', '${h.id}', '${(h.name || 'Hospital').replace(/'/g, "\\'")}')" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition flex items-center gap-1 shadow-sm" title="Quick Approve Hospital">
+                      <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                    </button>
+                  ` : ''}
+                  <button onclick="window.VerificationAdmin.openReview('hospital', '${h.id}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg font-bold text-xs transition">
+                    Review
+                  </button>
+                </div>
               </td>
             </tr>
           `;
@@ -768,7 +782,11 @@
         document.getElementById('modal-entity-type').value = type;
         document.getElementById('modal-entity-id').value = id;
         document.getElementById('modal-error-box').classList.add('hidden');
-        document.getElementById('modal-decision-reason').value = '';
+        document.getElementById('modal-decision-reason').value = 'Verified clinical establishment license, facilities, and council compliance.';
+
+        // Ensure "Approve" is checked by default
+        const apprvRadio = document.querySelector('input[name="modal-decision"][value="approved"]');
+        if (apprvRadio) apprvRadio.checked = true;
 
         const container = document.getElementById('modal-details-container');
         const docsList = document.getElementById('modal-documents-list');
@@ -846,12 +864,47 @@
           `;
         }
 
-        document.getElementById('review-modal').classList.remove('hidden');
+        const modal = document.getElementById('review-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
         if (window.lucide) window.lucide.createIcons();
       },
 
       closeModal() {
-        document.getElementById('review-modal').classList.add('hidden');
+        const modal = document.getElementById('review-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      },
+
+      async quickApprove(type, id, name) {
+        const confirmed = confirm(`Are you sure you want to APPROVE "${name}" and activate it for public search?`);
+        if (!confirmed) return;
+
+        const currentAdmin = window.Auth.getCurrentUser();
+        const adminId = currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001';
+        const reason = 'Direct administrative verification approval by Super Admin';
+
+        try {
+          if (type === 'hospital') {
+            await window.CarePulseDB.verifyHospital({
+              hospitalId: id,
+              adminId: adminId,
+              decision: 'approved',
+              reason: reason
+            });
+          } else {
+            await window.CarePulseDB.verifyDoctor({
+              doctorId: id,
+              adminId: adminId,
+              decision: 'approved',
+              reason: reason
+            });
+          }
+          await this.refresh();
+          alert(`✔ Success: ${name} has been APPROVED and is now active across CarePulse!`);
+        } catch (err) {
+          alert('Failed to approve: ' + (err.message || err));
+        }
       },
 
       attachFormSubmit() {

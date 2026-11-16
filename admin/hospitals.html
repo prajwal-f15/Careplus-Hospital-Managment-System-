@@ -172,7 +172,7 @@
   </main>
 
   <!-- 1. VIEW COMPLETE HOSPITAL DETAILS MODAL -->
-  <div id="hospital-details-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="hospital-details-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-100 pb-4">
         <div class="flex items-center gap-3">
@@ -272,7 +272,7 @@
   </div>
 
   <!-- 2. QUICK VERIFICATION DECISION MODAL -->
-  <div id="hospital-verify-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="hospital-verify-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-100 pb-4">
         <div class="flex items-center gap-3">
@@ -336,7 +336,7 @@
   </div>
 
   <!-- 3. ONBOARD NEW HOSPITAL MODAL -->
-  <div id="add-hospital-modal" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="add-hospital-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-100 pb-4">
         <div class="flex items-center gap-3">
@@ -697,7 +697,7 @@
         document.getElementById('verify-hosp-id').value = hosp.id;
         document.getElementById('verify-modal-title').innerText = `Verify: ${hosp.name}`;
         document.getElementById('verify-modal-subtitle').innerText = `License: ${hosp.license_number || 'Pending'} • City: ${hosp.city_name || 'Mumbai'}`;
-        document.getElementById('verify-hosp-reason').value = '';
+        document.getElementById('verify-hosp-reason').value = 'Verified clinical establishment license, facilities, and council compliance.';
         document.getElementById('verify-modal-error').classList.add('hidden');
 
         // Select current decision
