@@ -523,35 +523,73 @@ window.CarePulseDB = {
 
     try {
       // 1. Fetch doctors joined with profiles and departments
-      let query = sb
-        .from('doctors')
-        .select(`
-          *,
-          profiles (
-            id,
-            full_name,
-            email,
-            phone,
-            profile_image,
-            gender
-          ),
-          departments (
-            id,
-            name,
-            code,
-            room_number
-          )
-        `);
+      // Note: Supports explicit fkey constraint to avoid ambiguous relationship error with admin_reviewed_by
+      let docData = null;
+      let docError = null;
 
-      if (filters.departmentId) {
-        query = query.eq('department_id', filters.departmentId);
-      }
-      if (filters.availableToday !== undefined) {
-        query = query.eq('is_available_today', filters.availableToday);
+      try {
+        let q1 = sb
+          .from('doctors')
+          .select(`
+            *,
+            profiles:profiles!doctors_profile_id_fkey (
+              id,
+              full_name,
+              email,
+              phone,
+              profile_image,
+              gender
+            ),
+            departments (
+              id,
+              name,
+              code,
+              room_number
+            )
+          `);
+        if (filters.departmentId) q1 = q1.eq('department_id', filters.departmentId);
+        if (filters.availableToday !== undefined) q1 = q1.eq('is_available_today', filters.availableToday);
+        const res1 = await q1.order('created_at', { ascending: false });
+        if (!res1.error && res1.data) {
+          docData = res1.data;
+        } else {
+          docError = res1.error;
+        }
+      } catch (err1) {
+        docError = err1;
       }
 
-      const { data: docData, error: docError } = await query.order('created_at', { ascending: false });
-      
+      if (!docData) {
+        try {
+          let q2 = sb
+            .from('doctors')
+            .select(`
+              *,
+              profiles (
+                id,
+                full_name,
+                email,
+                phone,
+                profile_image,
+                gender
+              ),
+              departments (
+                id,
+                name,
+                code,
+                room_number
+              )
+            `);
+          if (filters.departmentId) q2 = q2.eq('department_id', filters.departmentId);
+          if (filters.availableToday !== undefined) q2 = q2.eq('is_available_today', filters.availableToday);
+          const res2 = await q2.order('created_at', { ascending: false });
+          if (!res2.error && res2.data) {
+            docData = res2.data;
+            docError = null;
+          }
+        } catch (err2) {}
+      }
+
       let list = [];
       if (!docError && docData) {
         list = docData.map(d => ({
@@ -643,11 +681,11 @@ window.CarePulseDB = {
     const sb = getSupabaseClient();
     if (sb) {
       try {
-        const { data, error } = await sb
+        let res = await sb
           .from('doctors')
           .select(`
             *,
-            profiles (
+            profiles:profiles!doctors_profile_id_fkey (
               id,
               full_name,
               email,
@@ -664,6 +702,33 @@ window.CarePulseDB = {
           `)
           .eq('id', id)
           .maybeSingle();
+
+        if (res.error || !res.data) {
+          res = await sb
+            .from('doctors')
+            .select(`
+              *,
+              profiles (
+                id,
+                full_name,
+                email,
+                phone,
+                profile_image,
+                gender
+              ),
+              departments (
+                id,
+                name,
+                code,
+                room_number
+              )
+            `)
+            .eq('id', id)
+            .maybeSingle();
+        }
+
+        const data = res.data;
+        const error = res.error;
 
         if (!error && data) {
           return {
@@ -1066,10 +1131,7 @@ window.CarePulseDB = {
           ),
           doctors (
             id, specialization, room_number, consultation_fee,
-            profiles (full_name, profile_image)
-          ),
-          departments (
-            id, name, code, room_number
+            profiles:profiles!doctors_profile_id_fkey (full_name, profile_image)
           )
         `);
 
@@ -1087,7 +1149,25 @@ window.CarePulseDB = {
       if (filters.status) query = query.eq('status', filters.status);
       if (filters.date) query = query.eq('appointment_date', filters.date);
 
-      const { data, error } = await query.order('appointment_date', { ascending: false });
+      let { data, error } = await query.order('appointment_date', { ascending: false });
+
+      if (error) {
+        // Fallback query if nested relationship format differs
+        const fallbackRes = await sb
+          .from('appointments')
+          .select(`
+            *,
+            profiles (
+              id, full_name, email, phone, gender, date_of_birth, blood_group
+            ),
+            doctors (
+              id, specialization, room_number, consultation_fee
+            )
+          `)
+          .order('appointment_date', { ascending: false });
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) {
         console.warn('getAppointments error, trying direct query:', error.message);

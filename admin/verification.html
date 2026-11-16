@@ -128,8 +128,8 @@
 
       <div class="flex items-center gap-2 w-full sm:w-auto">
         <select id="verification-status-filter" onchange="window.VerificationAdmin.renderActiveTab()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
-          <option value="all">All Statuses</option>
-          <option value="pending" selected>Pending Review</option>
+          <option value="all" selected>All Statuses</option>
+          <option value="pending">Pending Review Only</option>
           <option value="under_review">Under Review</option>
           <option value="approved">Approved & Active</option>
           <option value="rejected">Rejected</option>
@@ -375,8 +375,18 @@
         const sb = window.CarePulseDB.getClient();
         if (sb) {
           try {
-            const { data } = await sb.from('doctor_hospitals').select('*, doctors(*, profiles(*)), hospitals(*)');
-            if (data) this.affiliations = data;
+            const { data } = await sb.from('doctor_hospitals').select('*');
+            if (data && data.length > 0) {
+              this.affiliations = data.map(dh => {
+                const doc = this.doctors.find(d => d.id === dh.doctor_id || d.profile_id === dh.doctor_id);
+                const hosp = this.hospitals.find(h => h.id === dh.hospital_id);
+                return {
+                  ...dh,
+                  doctor_name: doc ? doc.full_name : 'Dr. Specialist',
+                  hospital_name: hosp ? hosp.name : 'CarePulse Central Hospital'
+                };
+              });
+            }
           } catch (e) {}
         }
 
@@ -444,6 +454,8 @@
           return matchesStatus && matchesQuery;
         });
 
+        filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
         if (filtered.length === 0) {
           tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400 text-xs">No cross-city referrals matching criteria.</td></tr>`;
           return;
@@ -486,7 +498,6 @@
             </tr>
           `;
         }).join('');
-      },
         if (window.lucide) window.lucide.createIcons();
       },
 
@@ -503,6 +514,13 @@
             (d.medical_registration_number && d.medical_registration_number.toLowerCase().includes(query)) ||
             (d.medical_council_name && d.medical_council_name.toLowerCase().includes(query));
           return matchesStatus && matchesQuery;
+        });
+
+        filtered.sort((a, b) => {
+          const stA = a.verification_status || (a.is_verified ? 'approved' : 'pending');
+          const stB = b.verification_status || (b.is_verified ? 'approved' : 'pending');
+          const prio = { pending: 4, under_review: 3, suspended: 2, rejected: 1, approved: 0 };
+          return (prio[stB] ?? 0) - (prio[stA] ?? 0);
         });
 
         if (filtered.length === 0) {
@@ -545,6 +563,7 @@
             </tr>
           `;
         }).join('');
+        if (window.lucide) window.lucide.createIcons();
       },
 
       renderHospitals(query, statusFilter) {
@@ -559,6 +578,13 @@
             (h.license_number && h.license_number.toLowerCase().includes(query)) ||
             (h.city_name && h.city_name.toLowerCase().includes(query));
           return matchesStatus && matchesQuery;
+        });
+
+        filtered.sort((a, b) => {
+          const stA = a.verification_status || 'approved';
+          const stB = b.verification_status || 'approved';
+          const prio = { pending: 4, under_review: 3, suspended: 2, rejected: 1, approved: 0 };
+          return (prio[stB] ?? 0) - (prio[stA] ?? 0);
         });
 
         if (filtered.length === 0) {
@@ -598,6 +624,7 @@
             </tr>
           `;
         }).join('');
+        if (window.lucide) window.lucide.createIcons();
       },
 
       renderAffiliations(query) {
