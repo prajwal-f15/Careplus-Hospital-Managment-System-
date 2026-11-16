@@ -4239,32 +4239,78 @@ window.CarePulseDB = {
 
   async getDoctorHospitals(doctorId) {
     const sb = getSupabaseClient();
-    if (!sb) return [];
+    let affiliations = [];
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('doctor_hospitals')
+          .select(`
+            *,
+            hospitals (*)
+          `)
+          .eq('doctor_id', doctorId)
+          .eq('affiliation_status', 'approved');
+
+        if (!error && Array.isArray(data) && data.length > 0) affiliations = [...data];
+      } catch (e) {}
+    }
+
+    // Merge with local storage affiliations
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_doctor_affiliations') || '[]');
+        const forDoc = local.filter(a => a.doctor_id === doctorId);
+        const existingHospIds = new Set(affiliations.map(a => a.hospital_id));
+        for (const la of forDoc) {
+          if (!existingHospIds.has(la.hospital_id)) {
+            affiliations.push(la);
+            existingHospIds.add(la.hospital_id);
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (affiliations.length === 0) {
+      affiliations.push({
+        id: 'dh-primary-' + doctorId,
+        doctor_id: doctorId,
+        hospital_id: 'c0000000-0000-0000-0000-000000000001',
+        hospital_name: 'CarePulse Central Hospital',
+        city_name: 'Mumbai',
+        is_primary: true,
+        affiliation_status: 'approved',
+        opd_room_number: 'Wing A - Room 101',
+        consultation_fee: 50,
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        timing: '09:00 - 13:00'
+      });
+    }
+
+    // Enrich hospital names
     try {
-      const { data, error } = await sb
-        .from('doctor_hospitals')
-        .select(`
-          *,
-          hospitals (*)
-        `)
-        .eq('doctor_id', doctorId)
-        .eq('affiliation_status', 'approved');
-
-      if (!error && Array.isArray(data) && data.length > 0) return data;
-    } catch (e) {}
-
-    return [{
-      doctor_id: doctorId,
-      hospital_id: 'c0000000-0000-0000-0000-000000000001',
-      hospital_name: 'CarePulse Central Hospital',
-      is_primary: true,
-      affiliation_status: 'approved'
-    }];
+      const allHosps = await this.getHospitals({ includeUnapproved: true });
+      return affiliations.map(a => {
+        const hosp = allHosps.find(h => h.id === a.hospital_id);
+        return {
+          ...a,
+          hospital_name: a.hospital_name || hosp?.name || a.hospitals?.name || 'CarePulse Central Hospital',
+          city_name: a.city_name || hosp?.city_name || a.hospitals?.city_name || 'Mumbai',
+          state_name: hosp?.state_name || 'Maharashtra',
+          opd_room_number: a.opd_room_number || a.opd_room || 'Room 101',
+          consultation_fee: a.consultation_fee || 50,
+          days: a.days || ['Monday', 'Wednesday', 'Friday'],
+          timing: a.timing || '10:00 - 14:00'
+        };
+      });
+    } catch (e) {
+      return affiliations;
+    }
   },
 
   async getHospitalDoctors(hospitalId) {
     const sb = getSupabaseClient();
-    const allDocs = await this.getDoctors();
+    const allDocs = await this.getDoctors({ includeUnapproved: true });
+    let matched = [];
     if (sb) {
       try {
         const { data, error } = await sb
@@ -4275,7 +4321,7 @@ window.CarePulseDB = {
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const docMap = new Map(allDocs.map(d => [d.id, d]));
-          const matched = data.map(dh => {
+          matched = data.map(dh => {
             const doc = docMap.get(dh.doctor_id);
             if (!doc) return null;
             return {
@@ -4285,12 +4331,38 @@ window.CarePulseDB = {
               is_primary_hospital: dh.is_primary === true
             };
           }).filter(Boolean);
-          if (matched.length > 0) return matched;
         }
       } catch (e) {
         console.warn('getHospitalDoctors note:', e.message);
       }
     }
+
+    // Also check local storage affiliations
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_doctor_affiliations') || '[]');
+        const forHosp = local.filter(a => a.hospital_id === hospitalId);
+        const existingDocIds = new Set(matched.map(d => d.id));
+        const docMap = new Map(allDocs.map(d => [d.id, d]));
+        for (const la of forHosp) {
+          if (!existingDocIds.has(la.doctor_id)) {
+            const doc = docMap.get(la.doctor_id);
+            if (doc) {
+              matched.push({
+                ...doc,
+                room_number: la.opd_room_number || doc.room_number || 'OPD-1',
+                consultation_fee: la.consultation_fee || doc.consultation_fee || 50,
+                is_primary_hospital: la.is_primary === true
+              });
+              existingDocIds.add(la.doctor_id);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (matched.length > 0) return matched;
+
     // Fallback: match doctors to hospital city or return top doctors
     const hosp = await this.getHospitalById(hospitalId);
     if (hosp && hosp.city_name) {
@@ -4896,15 +4968,32 @@ window.CarePulseDB = {
     return hospitalAppts;
   },
 
-  async addDoctorAffiliation({ doctorId, hospitalId, consultationFee = 50, opdRoomNumber = 'Room 101', isPrimary = false, days = ['Monday', 'Wednesday', 'Friday'], timing = '09:00 - 13:00' }) {
+  async addDoctorAffiliation({ doctorId, hospitalId, hospitalName = '', cityName = '', consultationFee = 50, opdRoomNumber = 'Room 101', isPrimary = false, days = ['Monday', 'Wednesday', 'Friday'], timing = '09:00 - 13:00' }) {
     const sb = getSupabaseClient();
+    let resolvedHospName = hospitalName;
+    let resolvedCity = cityName;
+    if (!resolvedHospName || !resolvedCity) {
+      try {
+        const hosps = await this.getHospitals({ includeUnapproved: true });
+        const h = hosps.find(x => x.id === hospitalId);
+        if (h) {
+          resolvedHospName = resolvedHospName || h.name;
+          resolvedCity = resolvedCity || h.city_name;
+        }
+      } catch (e) {}
+    }
+
     const affiliationRecord = {
       id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'dh-' + Date.now(),
       doctor_id: doctorId,
       hospital_id: hospitalId,
+      hospital_name: resolvedHospName || 'Partner Hospital',
+      city_name: resolvedCity || 'Maharashtra',
       consultation_fee: parseFloat(consultationFee) || 50,
       opd_room_number: opdRoomNumber,
       is_primary: isPrimary,
+      days: Array.isArray(days) ? days : ['Monday', 'Wednesday', 'Friday'],
+      timing: timing || '09:00 - 13:00',
       affiliation_status: 'approved',
       created_at: new Date().toISOString()
     };
@@ -4923,10 +5012,26 @@ window.CarePulseDB = {
           }, { onConflict: 'doctor_id,hospital_id' })
           .select()
           .maybeSingle();
-        if (!error && data) return data;
+        if (!error && data) {
+          affiliationRecord.id = data.id || affiliationRecord.id;
+        }
       } catch (e) {
         console.warn('addDoctorAffiliation note:', e.message);
       }
+    }
+
+    // Persist to local storage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('carepulse_local_doctor_affiliations') || '[]');
+        const idx = stored.findIndex(a => a.doctor_id === doctorId && a.hospital_id === hospitalId);
+        if (idx >= 0) {
+          stored[idx] = affiliationRecord;
+        } else {
+          stored.push(affiliationRecord);
+        }
+        localStorage.setItem('carepulse_local_doctor_affiliations', JSON.stringify(stored));
+      } catch (e) {}
     }
 
     return affiliationRecord;
@@ -4937,11 +5042,19 @@ window.CarePulseDB = {
     if (sb) {
       try {
         await sb.from('doctor_hospitals').delete().eq('id', doctorHospitalId);
-        return true;
       } catch (e) {
         console.warn('removeDoctorAffiliation note:', e.message);
       }
     }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        let stored = JSON.parse(localStorage.getItem('carepulse_local_doctor_affiliations') || '[]');
+        stored = stored.filter(a => a.id !== doctorHospitalId && a.hospital_id !== doctorHospitalId);
+        localStorage.setItem('carepulse_local_doctor_affiliations', JSON.stringify(stored));
+      } catch (e) {}
+    }
+
     return true;
   },
 
@@ -5130,34 +5243,7 @@ window.CarePulseDB = {
 
     if (sb) {
       try {
-        let q = sb.from('doctor_visit_campaigns').select(`
-          *,
-          doctors (
-            id,
-            specialization,
-            qualification,
-            experience_years,
-            profiles:profiles!doctors_profile_id_fkey (
-              id,
-              full_name,
-              profile_image
-            )
-          ),
-          hospitals (
-            id,
-            name,
-            hospital_type,
-            address,
-            phone,
-            emergency_phone
-          ),
-          cities (
-            id,
-            city_name,
-            district_name,
-            state_name
-          )
-        `);
+        let q = sb.from('doctor_visit_campaigns').select('*');
 
         if (!filters.includeUnapproved) {
           q = q.eq('status', 'approved').eq('is_active', true);
@@ -5177,20 +5263,10 @@ window.CarePulseDB = {
 
         const { data, error } = await q.order('created_at', { ascending: false });
         if (!error && Array.isArray(data) && data.length > 0) {
-          list = data.map(c => ({
-            ...c,
-            doctor_name: c.doctors?.profiles?.full_name || 'Dr. Specialist',
-            doctor_photo: c.doctors?.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
-            doctor_qualification: c.doctors?.qualification || 'MBBS, MD',
-            doctor_experience: c.doctors?.experience_years || 10,
-            hospital_name: c.hospitals?.name || 'CarePulse Partner Facility',
-            city_name: c.cities?.city_name || 'Regional City',
-            district_name: c.cities?.district_name || 'Regional District',
-            state_name: c.cities?.state_name || 'Maharashtra'
-          }));
+          list = [...data];
         }
       } catch (e) {
-        console.warn('Supabase getCampaigns note:', e.message);
+        // Supabase remote table or join warning, fall back gracefully
       }
     }
 
@@ -5199,18 +5275,88 @@ window.CarePulseDB = {
     }
 
     // Merge any locally stored campaigns
+    let localSaved = [];
     if (typeof localStorage !== 'undefined') {
       try {
-        const local = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
+        localSaved = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
         const existingIds = new Set(list.map(c => c.id));
-        for (const lc of local) {
+        for (const lc of localSaved) {
           if (!existingIds.has(lc.id)) {
             list.unshift(lc);
             existingIds.add(lc.id);
+          } else {
+            // Update in-memory item with local status if newer
+            const idx = list.findIndex(c => c.id === lc.id);
+            if (idx >= 0 && lc.status) {
+              list[idx] = { ...list[idx], ...lc };
+            }
           }
         }
       } catch (e) {}
     }
+
+    // Enrich missing hospital/city/doctor details on all records
+    try {
+      const allHosps = await this.getHospitals({ includeUnapproved: true });
+      const allDocs = await this.getDoctors({ includeUnapproved: true });
+
+      let localUpdated = false;
+      list = list.map(c => {
+        let hospName = c.hospital_name;
+        let cityName = c.city_name;
+        let stateName = c.state_name;
+        let docName = c.doctor_name;
+        let docPhoto = c.doctor_photo;
+        let docQual = c.doctor_qualification;
+
+        if (!hospName || hospName === 'undefined') {
+          const matchedH = allHosps.find(h => h.id === c.hospital_id);
+          hospName = matchedH ? matchedH.name : 'CarePulse Partner Facility';
+          if (!cityName || cityName === 'undefined') {
+            cityName = matchedH ? matchedH.city_name : 'Pune';
+          }
+          if (!stateName || stateName === 'undefined') {
+            stateName = matchedH?.state_name || 'Maharashtra';
+          }
+        }
+        if (!cityName || cityName === 'undefined') {
+          cityName = 'Maharashtra';
+        }
+        if (!stateName || stateName === 'undefined') {
+          stateName = 'Maharashtra';
+        }
+        if (!docName || docName === 'undefined') {
+          const matchedD = allDocs.find(d => d.id === c.doctor_id || d.profile_id === c.doctor_id);
+          docName = matchedD ? matchedD.full_name : 'Dr. Specialist';
+          docPhoto = docPhoto || matchedD?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400';
+          docQual = docQual || matchedD?.qualification || 'MBBS, MD';
+        }
+
+        const enriched = {
+          ...c,
+          hospital_name: hospName,
+          city_name: cityName,
+          state_name: stateName,
+          doctor_name: docName,
+          doctor_photo: docPhoto || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+          doctor_qualification: docQual || 'MBBS, MD'
+        };
+
+        if (c.hospital_name !== hospName || c.city_name !== cityName) {
+          localUpdated = true;
+        }
+        return enriched;
+      });
+
+      // Clean local storage if any undefined values were repaired
+      if (localUpdated && typeof localStorage !== 'undefined' && localSaved.length > 0) {
+        const repaired = localSaved.map(lc => {
+          const match = list.find(x => x.id === lc.id);
+          return match ? { ...lc, hospital_name: match.hospital_name, city_name: match.city_name, state_name: match.state_name } : lc;
+        });
+        localStorage.setItem('carepulse_local_campaigns', JSON.stringify(repaired));
+      }
+    } catch (err) {}
 
     // Filter by active status if not explicitly including unapproved
     if (!filters.includeUnapproved) {
@@ -5251,16 +5397,55 @@ window.CarePulseDB = {
   async createCampaign(payload) {
     const sb = getSupabaseClient();
     const newId = 'e' + Date.now().toString().slice(-12).padStart(35, '0');
+
+    let hospName = payload.hospital_name || '';
+    let cityName = payload.city_name || '';
+    let stateName = payload.state_name || 'Maharashtra';
+    let docName = payload.doctor_name || '';
+    let docPhoto = payload.doctor_photo || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400';
+    let docQual = payload.doctor_qualification || 'MBBS, MD';
+
+    // Resolve hospital name and city if not given
+    if (!hospName && payload.hospital_id) {
+      try {
+        const hosps = await this.getHospitals({ includeUnapproved: true });
+        const h = hosps.find(x => x.id === payload.hospital_id);
+        if (h) {
+          hospName = h.name;
+          cityName = cityName || h.city_name;
+          stateName = h.state_name || stateName;
+        }
+      } catch (e) {}
+    }
+    if (!docName && payload.doctor_id) {
+      try {
+        const docs = await this.getDoctors({ includeUnapproved: true });
+        const d = docs.find(x => x.id === payload.doctor_id || x.profile_id === payload.doctor_id);
+        if (d) {
+          docName = d.full_name;
+          docPhoto = d.profile_image || docPhoto;
+          docQual = d.qualification || docQual;
+        }
+      } catch (e) {}
+    }
+
     const entity = {
       id: payload.id || newId,
       doctor_id: payload.doctor_id || null,
+      doctor_name: docName || 'Dr. Specialist',
+      doctor_photo: docPhoto,
+      doctor_qualification: docQual,
       hospital_id: payload.hospital_id || null,
+      hospital_name: hospName || 'CarePulse Partner Facility',
       title: payload.title,
       description: payload.description || '',
       city_id: payload.city_id || null,
+      city_name: cityName || 'Regional City',
+      district_name: payload.district_name || cityName || 'Regional District',
+      state_name: stateName,
       venue_address: payload.venue_address || payload.address || '',
-      latitude: payload.latitude || null,
-      longitude: payload.longitude || null,
+      latitude: payload.latitude || 19.0760,
+      longitude: payload.longitude || 72.8777,
       start_date: payload.start_date,
       end_date: payload.end_date,
       target_radius_km: payload.target_radius_km || 50,
@@ -5280,14 +5465,37 @@ window.CarePulseDB = {
 
     if (sb) {
       try {
-        const { data, error } = await sb.from('doctor_visit_campaigns').insert(entity).select().maybeSingle();
-        if (!error && data) return data;
+        // Send pure database fields to prevent PostgreSQL column mismatches
+        const dbFields = {
+          id: entity.id,
+          doctor_id: entity.doctor_id,
+          hospital_id: entity.hospital_id,
+          title: entity.title,
+          description: entity.description,
+          city_id: entity.city_id,
+          venue_address: entity.venue_address,
+          latitude: entity.latitude,
+          longitude: entity.longitude,
+          start_date: entity.start_date,
+          end_date: entity.end_date,
+          target_radius_km: entity.target_radius_km,
+          banner_url: entity.banner_url,
+          campaign_type: entity.campaign_type,
+          specialization: entity.specialization,
+          available_slots: entity.available_slots,
+          fee: entity.fee,
+          status: entity.status,
+          is_active: entity.is_active,
+          is_sponsored: entity.is_sponsored,
+          created_at: entity.created_at
+        };
+        await sb.from('doctor_visit_campaigns').insert(dbFields);
       } catch (e) {
         console.warn('createCampaign note:', e.message);
       }
     }
 
-    // Persist to localStorage
+    // Persist full enriched object to localStorage
     if (typeof localStorage !== 'undefined') {
       try {
         const local = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
@@ -5300,13 +5508,11 @@ window.CarePulseDB = {
   },
 
   async verifyCampaign({ campaignId, adminId, decision, reason }) {
-    if (!reason || !reason.trim()) {
-      throw new Error('Mandatory justification reason is required for administrative audit.');
-    }
     const valid = ['approved', 'rejected', 'cancelled', 'suspended'];
     if (!valid.includes(decision)) {
       throw new Error(`Invalid decision: ${decision}`);
     }
+    const cleanReason = (reason && reason.trim()) ? reason.trim() : `Administrative compliance check: marked as ${decision}.`;
 
     const sb = getSupabaseClient();
     const isActive = (decision === 'approved');
@@ -5317,7 +5523,7 @@ window.CarePulseDB = {
           status: decision,
           is_active: isActive,
           admin_reviewed_by: adminId,
-          admin_review_reason: reason.trim(),
+          admin_review_reason: cleanReason,
           admin_reviewed_at: new Date().toISOString()
         }).eq('id', campaignId);
       } catch (e) {
@@ -5342,7 +5548,7 @@ window.CarePulseDB = {
       action: `campaign_verification_${decision}`,
       entity_type: 'campaign',
       entity_id: campaignId,
-      details: { adminId, decision, reason: reason.trim(), timestamp: new Date().toISOString() }
+      details: { adminId, decision, reason: cleanReason, timestamp: new Date().toISOString() }
     });
 
     return { success: true, campaignId, decision };

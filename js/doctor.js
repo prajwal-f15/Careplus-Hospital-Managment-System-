@@ -1086,6 +1086,193 @@ window.DoctorApp = {
         }
       }
     });
+
+    // Render Practice Locations & Affiliations
+    await this.renderAffiliations();
+  },
+
+  // --------------------------------------------------------------------------
+  // 6B. DOCTOR PRACTICE LOCATIONS & AFFILIATIONS CONTROLLER
+  // --------------------------------------------------------------------------
+  async renderAffiliations() {
+    const container = document.getElementById('doctor-affiliations-list');
+    if (!container) return;
+
+    const docId = this.doctorRecord?.id || this.currentUser?.id;
+    if (!docId) return;
+
+    container.innerHTML = `
+      <div class="col-span-full py-6 text-center text-xs text-slate-400">
+        <div class="w-6 h-6 border-2 border-teal-500 border-t-transparent animate-spin rounded-full mx-auto mb-1"></div>
+        Loading practice locations...
+      </div>
+    `;
+
+    const affils = await window.CarePulseDB.getDoctorHospitals(docId);
+
+    if (!affils || affils.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full p-6 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+          No practice locations listed yet. Click "+ Add Practice Location" to link with hospitals and clinics.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = affils.map(a => {
+      const isPrimary = a.is_primary === true;
+      const daysStr = Array.isArray(a.days) ? a.days.join(', ') : (a.days || 'Mon, Wed, Fri');
+      const timingsStr = a.timing || '09:00 - 13:00';
+
+      return `
+        <div class="bg-slate-50 hover:bg-white rounded-2xl p-5 border ${isPrimary ? 'border-teal-300 ring-1 ring-teal-200' : 'border-slate-200'} shadow-sm transition space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h4 class="font-bold text-sm text-slate-900">${a.hospital_name || 'CarePulse Partner Facility'}</h4>
+                ${isPrimary ? `
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">
+                    Primary Base
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-200 text-slate-700">
+                    Affiliated Center
+                  </span>
+                `}
+              </div>
+              <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i> ${a.city_name || 'Maharashtra'}, India
+              </p>
+            </div>
+
+            ${!isPrimary ? `
+              <button type="button" onclick="window.DoctorApp.removeAffiliation('${a.id}', '${(a.hospital_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Remove practice location">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-200/60">
+            <div>
+              <span class="text-[9px] uppercase font-bold text-slate-400 block">OPD Room</span>
+              <span class="font-semibold text-slate-800">${a.opd_room_number || 'Room 101'}</span>
+            </div>
+            <div>
+              <span class="text-[9px] uppercase font-bold text-slate-400 block">Consultation Fee</span>
+              <span class="font-black text-slate-900">$${a.consultation_fee || 50}</span>
+            </div>
+            <div class="col-span-2">
+              <span class="text-[9px] uppercase font-bold text-slate-400 block">OPD Days & Hours</span>
+              <span class="font-medium text-slate-700">${daysStr} • ${timingsStr}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async openAddAffiliationModal() {
+    const modal = document.getElementById('add-affiliation-modal');
+    if (!modal) return;
+
+    const select = document.getElementById('modal-affil-hospital');
+    if (select) {
+      select.innerHTML = `<option value="">Loading hospitals...</option>`;
+      const hosps = await window.CarePulseDB.getHospitals();
+      select.innerHTML = hosps.map(h => `
+        <option value="${h.id}" data-city="${h.city_name || 'Maharashtra'}" data-name="${(h.name || '').replace(/"/g, '&quot;')}">
+          ${h.name} (${h.city_name || 'Maharashtra'})
+        </option>
+      `).join('');
+
+      this.onAffilHospitalChange();
+    }
+
+    modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  closeAddAffiliationModal() {
+    const modal = document.getElementById('add-affiliation-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  onAffilHospitalChange() {
+    const select = document.getElementById('modal-affil-hospital');
+    if (!select || select.selectedIndex < 0) return;
+    const opt = select.options[select.selectedIndex];
+    const city = opt?.getAttribute('data-city');
+    const cityInput = document.getElementById('modal-affil-city');
+    if (cityInput && city) {
+      cityInput.value = city;
+    }
+  },
+
+  async saveNewAffiliation(e) {
+    e.preventDefault();
+    const select = document.getElementById('modal-affil-hospital');
+    if (!select || !select.value) {
+      alert('Please select a hospital or clinic.');
+      return;
+    }
+
+    const opt = select.options[select.selectedIndex];
+    const hospId = select.value;
+    const hospName = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
+    const city = document.getElementById('modal-affil-city').value.trim();
+    const room = document.getElementById('modal-affil-room').value.trim();
+    const fee = parseFloat(document.getElementById('modal-affil-fee').value) || 50;
+    const timing = document.getElementById('modal-affil-timing').value.trim() || '09:00 - 13:00';
+    const isPrimary = document.getElementById('modal-affil-primary').checked;
+
+    const dayCheckboxes = document.querySelectorAll('input[name="affil-days"]:checked');
+    const days = Array.from(dayCheckboxes).map(cb => cb.value);
+
+    const btn = document.getElementById('modal-affil-submit-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = 'Saving Location...';
+    }
+
+    try {
+      const docId = this.doctorRecord?.id || this.currentUser?.id;
+      await window.CarePulseDB.addDoctorAffiliation({
+        doctorId: docId,
+        hospitalId: hospId,
+        hospitalName: hospName,
+        cityName: city,
+        consultationFee: fee,
+        opdRoomNumber: room,
+        isPrimary: isPrimary,
+        days: days.length > 0 ? days : ['Monday', 'Wednesday', 'Friday'],
+        timing: timing
+      });
+
+      this.closeAddAffiliationModal();
+      await this.renderAffiliations();
+      if (window.showToast) window.showToast(`Practice location added at ${hospName} (${city})!`, 'success');
+    } catch (err) {
+      alert('Error saving location: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Save Location`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+  },
+
+  async removeAffiliation(affilId, hospName) {
+    if (!confirm(`Are you sure you want to remove your practice location at "${hospName}"?`)) return;
+    try {
+      await window.CarePulseDB.removeDoctorAffiliation(affilId);
+      await this.renderAffiliations();
+      if (window.showToast) window.showToast(`Removed practice location at ${hospName}`, 'info');
+    } catch (err) {
+      alert('Error removing location: ' + err.message);
+    }
   }
 };
 

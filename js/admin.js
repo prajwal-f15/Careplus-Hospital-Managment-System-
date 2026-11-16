@@ -103,6 +103,11 @@ window.AdminApp = {
     if (window.lucide) window.lucide.createIcons();
   },
 
+  activeQueueTab: 'hospitals',
+  pendingHosps: [],
+  pendingDocs: [],
+  pendingCamps: [],
+
   // --------------------------------------------------------------------------
   // 1. ADMIN DASHBOARD & CHART.JS ANALYTICS
   // --------------------------------------------------------------------------
@@ -111,6 +116,7 @@ window.AdminApp = {
     const doctors = await window.CarePulseDB.getDoctors({ includeUnapproved: true });
     const hospitals = await window.CarePulseDB.getHospitals({ includeUnapproved: true });
     const appointments = await window.CarePulseDB.getAppointments();
+    const campaigns = await window.CarePulseDB.getCampaigns({ includeUnapproved: true });
 
     const patients = profiles.filter(p => p.role === 'patient');
     const pending = appointments.filter(a => a.status === 'pending');
@@ -120,7 +126,13 @@ window.AdminApp = {
 
     const pendingDocs = doctors.filter(d => d.verification_status === 'pending' || d.verification_status === 'under_review' || (!d.is_verified && d.verification_status !== 'rejected'));
     const pendingHosps = hospitals.filter(h => h.verification_status === 'pending' || h.verification_status === 'under_review');
-    const totalPendingVerify = pendingDocs.length + pendingHosps.length;
+    const pendingCamps = campaigns.filter(c => c.status === 'pending' || c.status === 'under_review');
+
+    this.pendingDocs = pendingDocs;
+    this.pendingHosps = pendingHosps;
+    this.pendingCamps = pendingCamps;
+
+    const totalPendingVerify = pendingDocs.length + pendingHosps.length + pendingCamps.length;
 
     // Update Counter Stats
     const setStat = (id, val) => {
@@ -156,12 +168,15 @@ window.AdminApp = {
       if (totalPendingVerify > 0) {
         alertBanner.classList.remove('hidden');
         if (bannerText) {
-          bannerText.innerText = `${pendingDocs.length} doctor(s) and ${pendingHosps.length} hospital(s) are awaiting verification. They will not appear in patient searches until approved.`;
+          bannerText.innerText = `${pendingHosps.length} hospital(s), ${pendingDocs.length} doctor(s), and ${pendingCamps.length} visiting campaign(s) are awaiting verification. They will not appear in patient searches until approved.`;
         }
       } else {
         alertBanner.classList.add('hidden');
       }
     }
+
+    // Render Pending Verification Queue on Dashboard
+    this.renderQueue();
 
     // Render Recent Appointments Table in Admin Dashboard
     const recentTable = document.getElementById('admin-recent-appointments');
@@ -296,6 +311,335 @@ window.AdminApp = {
         }
       });
     }
+  },
+
+  // --------------------------------------------------------------------------
+  // 1B. DASHBOARD VERIFICATION QUEUE CONTROLLER
+  // --------------------------------------------------------------------------
+  switchQueueTab(tab) {
+    this.activeQueueTab = tab;
+    const tabHosp = document.getElementById('admin-queue-tab-hospitals');
+    const tabDoc = document.getElementById('admin-queue-tab-doctors');
+    const tabCamp = document.getElementById('admin-queue-tab-campaigns');
+
+    const setActive = (el, active) => {
+      if (!el) return;
+      if (active) {
+        el.className = 'px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-sky-600 text-white shadow-sm';
+      } else {
+        el.className = 'px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200';
+      }
+    };
+
+    setActive(tabHosp, tab === 'hospitals');
+    setActive(tabDoc, tab === 'doctors');
+    setActive(tabCamp, tab === 'campaigns');
+
+    this.renderQueue();
+  },
+
+  async loadPendingVerifications() {
+    const doctors = await window.CarePulseDB.getDoctors({ includeUnapproved: true });
+    const hospitals = await window.CarePulseDB.getHospitals({ includeUnapproved: true });
+    const campaigns = await window.CarePulseDB.getCampaigns({ includeUnapproved: true });
+
+    this.pendingDocs = doctors.filter(d => d.verification_status === 'pending' || d.verification_status === 'under_review' || (!d.is_verified && d.verification_status !== 'rejected'));
+    this.pendingHosps = hospitals.filter(h => h.verification_status === 'pending' || h.verification_status === 'under_review');
+    this.pendingCamps = campaigns.filter(c => c.status === 'pending' || c.status === 'under_review');
+
+    const total = this.pendingDocs.length + this.pendingHosps.length + this.pendingCamps.length;
+    const statEl = document.getElementById('stat-admin-pending-verifications');
+    if (statEl) statEl.innerText = total;
+
+    const navBadge = document.getElementById('nav-pending-badge');
+    if (navBadge) {
+      if (total > 0) {
+        navBadge.classList.remove('hidden');
+        navBadge.innerText = total;
+      } else {
+        navBadge.classList.add('hidden');
+      }
+    }
+
+    this.renderQueue();
+  },
+
+  renderQueue() {
+    const container = document.getElementById('admin-queue-content');
+    if (!container) return;
+
+    const hospBadge = document.getElementById('badge-queue-hospitals');
+    const docBadge = document.getElementById('badge-queue-doctors');
+    const campBadge = document.getElementById('badge-queue-campaigns');
+    const totalPill = document.getElementById('admin-pending-total-pill');
+
+    const hCount = (this.pendingHosps || []).length;
+    const dCount = (this.pendingDocs || []).length;
+    const cCount = (this.pendingCamps || []).length;
+    const total = hCount + dCount + cCount;
+
+    if (hospBadge) hospBadge.innerText = hCount;
+    if (docBadge) docBadge.innerText = dCount;
+    if (campBadge) campBadge.innerText = cCount;
+    if (totalPill) {
+      totalPill.innerText = `${total} Pending Action`;
+      totalPill.className = total > 0
+        ? 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 animate-pulse'
+        : 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800';
+    }
+
+    // Auto-switch to tab that has pending items if current is empty
+    if (this.activeQueueTab === 'hospitals' && hCount === 0 && (dCount > 0 || cCount > 0)) {
+      this.activeQueueTab = dCount > 0 ? 'doctors' : 'campaigns';
+      this.switchQueueTab(this.activeQueueTab);
+      return;
+    }
+
+    if (this.activeQueueTab === 'hospitals') {
+      if (hCount === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center space-y-2">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <p class="text-xs font-bold text-slate-800">No Hospitals Awaiting Verification</p>
+            <p class="text-[11px] text-slate-400">All registered hospitals and clinics have been reviewed and approved.</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+                <th class="py-3 px-4">Hospital Name & Type</th>
+                <th class="py-3 px-4">Establishment License</th>
+                <th class="py-3 px-4">Location (City & State)</th>
+                <th class="py-3 px-4">Beds & Facilities</th>
+                <th class="py-3 px-4 text-right">Verification Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.pendingHosps.map(h => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                  <td class="py-3 px-4">
+                    <span class="font-bold text-slate-900 block">${h.name}</span>
+                    <span class="text-[10px] text-sky-600 uppercase font-semibold">${h.hospital_type || 'Private Healthcare'}</span>
+                  </td>
+                  <td class="py-3 px-4 font-mono font-semibold text-slate-700">
+                    ${h.license_number || h.registration_number || 'LIC-PENDING'}
+                  </td>
+                  <td class="py-3 px-4 text-slate-600">
+                    <span class="font-bold text-slate-800">${h.city_name || 'Pune'}</span>, ${h.state_name || 'Maharashtra'}
+                  </td>
+                  <td class="py-3 px-4 text-slate-500">
+                    <span class="font-bold text-slate-700">${h.total_beds || 40} Beds</span> • ${(Array.isArray(h.facilities) ? h.facilities.slice(0, 3).join(', ') : 'ICU, Emergency')}
+                  </td>
+                  <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                    <button onclick="window.AdminApp.quickApproveHospital('${h.id}', '${(h.name || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition inline-flex items-center gap-1">
+                      <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                    </button>
+                    <button onclick="window.AdminApp.quickRejectHospital('${h.id}', '${(h.name || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition inline-flex items-center gap-1">
+                      <i data-lucide="x" class="w-3.5 h-3.5"></i> Reject
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    } else if (this.activeQueueTab === 'doctors') {
+      if (dCount === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center space-y-2">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <p class="text-xs font-bold text-slate-800">No Doctors Awaiting Verification</p>
+            <p class="text-[11px] text-slate-400">All medical practitioners have valid medical council registrations approved.</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+                <th class="py-3 px-4">Doctor & Specialization</th>
+                <th class="py-3 px-4">Council & Reg Number</th>
+                <th class="py-3 px-4">City / Primary Practice</th>
+                <th class="py-3 px-4">Experience & Mode</th>
+                <th class="py-3 px-4 text-right">Verification Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.pendingDocs.map(d => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                  <td class="py-3 px-4">
+                    <span class="font-bold text-slate-900 block">${d.full_name}</span>
+                    <span class="text-[10px] text-teal-600 font-semibold">${d.specialization || 'Specialist'}</span>
+                  </td>
+                  <td class="py-3 px-4 font-mono font-semibold text-slate-700">
+                    <div>${d.medical_registration_number || 'PENDING'}</div>
+                    <div class="text-[10px] text-slate-400 font-normal">${d.medical_council_name || 'State Medical Council'}</div>
+                  </td>
+                  <td class="py-3 px-4 text-slate-600">
+                    <span class="font-bold text-slate-800">${d.city_name || 'Mumbai'}</span>
+                  </td>
+                  <td class="py-3 px-4 text-slate-500">
+                    ${d.experience_years || 5} Years • <span class="capitalize">${d.consultation_modes || 'both'}</span>
+                  </td>
+                  <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                    <button onclick="window.AdminApp.quickApproveDoctor('${d.id}', '${(d.full_name || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition inline-flex items-center gap-1">
+                      <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                    </button>
+                    <button onclick="window.AdminApp.quickRejectDoctor('${d.id}', '${(d.full_name || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition inline-flex items-center gap-1">
+                      <i data-lucide="x" class="w-3.5 h-3.5"></i> Reject
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    } else if (this.activeQueueTab === 'campaigns') {
+      if (cCount === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center space-y-2">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <i data-lucide="check-circle" class="w-6 h-6"></i>
+            </div>
+            <p class="text-xs font-bold text-slate-800">No Visiting Campaigns Awaiting Review</p>
+            <p class="text-[11px] text-slate-400">All visiting specialist OPDs and medical camps are reviewed.</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50/75 text-slate-400 uppercase text-[10px] font-bold">
+                <th class="py-3 px-4">Campaign Title & Type</th>
+                <th class="py-3 px-4">Doctor & Host Facility</th>
+                <th class="py-3 px-4">Location (City & State)</th>
+                <th class="py-3 px-4">Dates & Available Slots</th>
+                <th class="py-3 px-4 text-right">Verification Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.pendingCamps.map(c => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                  <td class="py-3 px-4">
+                    <span class="font-bold text-slate-900 block">${c.title}</span>
+                    <span class="text-[10px] text-teal-600 font-semibold uppercase">${c.campaign_type === 'medical_camp' ? 'Free Medical Camp' : 'Visiting Specialist OPD'}</span>
+                  </td>
+                  <td class="py-3 px-4 text-slate-700">
+                    <div class="font-semibold">${c.doctor_name || 'Dr. Specialist'}</div>
+                    <div class="text-[10px] text-slate-400">${c.hospital_name || 'Partner Facility'}</div>
+                  </td>
+                  <td class="py-3 px-4 text-slate-600">
+                    <span class="font-bold text-slate-800">${c.city_name || 'Regional City'}</span>, ${c.state_name || 'Maharashtra'}
+                  </td>
+                  <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                    ${c.start_date} to ${c.end_date} <br><strong class="text-slate-800">${c.available_slots || 30} Slots</strong>
+                  </td>
+                  <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                    <button onclick="window.AdminApp.quickApproveCampaign('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition inline-flex items-center gap-1">
+                      <i data-lucide="check" class="w-3.5 h-3.5"></i> Approve
+                    </button>
+                    <button onclick="window.AdminApp.quickRejectCampaign('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition inline-flex items-center gap-1">
+                      <i data-lucide="x" class="w-3.5 h-3.5"></i> Reject
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async quickApproveHospital(id, name) {
+    if (!confirm(`Approve hospital "${name}" and make it publicly searchable across CarePulse?`)) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyHospital({
+      hospitalId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'approved',
+      reason: 'Administrative verification completed from main dashboard queue.'
+    });
+    if (window.showToast) window.showToast(`Hospital "${name}" approved and active!`, 'success');
+    await this.loadPendingVerifications();
+  },
+
+  async quickRejectHospital(id, name) {
+    const reason = prompt(`Enter rejection reason for "${name}":`, 'Clinical establishment license incomplete or invalid.');
+    if (!reason) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyHospital({
+      hospitalId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'rejected',
+      reason: reason.trim()
+    });
+    if (window.showToast) window.showToast(`Hospital "${name}" marked as rejected.`, 'info');
+    await this.loadPendingVerifications();
+  },
+
+  async quickApproveDoctor(id, name) {
+    if (!confirm(`Approve doctor "${name}" and make their profile publicly bookable?`)) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyDoctor({
+      doctorId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'approved',
+      reason: 'Medical council registration verified from main dashboard queue.'
+    });
+    if (window.showToast) window.showToast(`Doctor "${name}" approved and verified!`, 'success');
+    await this.loadPendingVerifications();
+  },
+
+  async quickRejectDoctor(id, name) {
+    const reason = prompt(`Enter rejection reason for "${name}":`, 'Medical council registration number verification failed.');
+    if (!reason) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyDoctor({
+      doctorId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'rejected',
+      reason: reason.trim()
+    });
+    if (window.showToast) window.showToast(`Doctor "${name}" marked as rejected.`, 'info');
+    await this.loadPendingVerifications();
+  },
+
+  async quickApproveCampaign(id, title) {
+    if (!confirm(`Approve and publish visiting campaign "${title}" to patients?`)) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyCampaign({
+      campaignId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'approved',
+      reason: 'Outreach campaign verified from main dashboard queue.'
+    });
+    if (window.showToast) window.showToast(`Campaign "${title}" approved and live!`, 'success');
+    await this.loadPendingVerifications();
+  },
+
+  async quickRejectCampaign(id, title) {
+    const reason = prompt(`Enter rejection reason for campaign "${title}":`, 'Outreach facility details or dates require revision.');
+    if (!reason) return;
+    const currentAdmin = window.Auth?.getCurrentUser();
+    await window.CarePulseDB.verifyCampaign({
+      campaignId: id,
+      adminId: currentAdmin?.id || 'a0000000-0000-0000-0000-000000000001',
+      decision: 'rejected',
+      reason: reason.trim()
+    });
+    if (window.showToast) window.showToast(`Campaign "${title}" marked as rejected.`, 'info');
+    await this.loadPendingVerifications();
   },
 
   // --------------------------------------------------------------------------

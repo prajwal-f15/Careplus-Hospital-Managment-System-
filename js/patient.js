@@ -310,8 +310,356 @@ window.PatientApp = {
 
     if (window.lucide) window.lucide.createIcons();
 
+    // Initialize City Filter Selection
+    this.selectedCity = localStorage.getItem('carepulse_patient_selected_city') || 'all';
+    this.updateCityPillUI(this.selectedCity);
+
+    // Render Nearby Hospitals & Doctors in Selected City
+    await this.renderNearbyHospitals();
+    await this.renderNearbyDoctors();
+
     // Render Visiting Specialist Campaigns (Section 9)
     await this.renderVisitingCampaigns();
+  },
+
+  selectedCity: 'all',
+
+  updateCityPillUI(city) {
+    const pills = document.querySelectorAll('.city-pill');
+    pills.forEach(btn => {
+      const btnCity = btn.getAttribute('data-city');
+      if (btnCity === city || (city === 'all' && btnCity === 'all')) {
+        btn.className = 'city-pill px-3.5 py-1.5 text-xs font-bold rounded-xl transition bg-sky-500 text-white shadow-sm shrink-0';
+      } else {
+        btn.className = 'city-pill px-3.5 py-1.5 text-xs font-bold rounded-xl transition bg-white/10 hover:bg-white/20 text-slate-200 shrink-0';
+      }
+    });
+
+    const displayEl = document.getElementById('active-city-display');
+    if (displayEl) {
+      displayEl.innerHTML = `<i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Showing: ${city === 'all' ? 'Maharashtra (All India)' : city + ', Maharashtra'}`;
+    }
+
+    const hospTitle = document.getElementById('nearby-hospitals-title');
+    if (hospTitle) {
+      hospTitle.innerText = city === 'all' ? 'Verified Hospitals & Clinics Across Maharashtra' : `Verified Hospitals & Clinics in ${city}`;
+    }
+
+    const docTitle = document.getElementById('nearby-doctors-title');
+    if (docTitle) {
+      docTitle.innerText = city === 'all' ? 'Specialist Doctors Across Maharashtra' : `Specialist Doctors in ${city}`;
+    }
+
+    const campLocLabel = document.getElementById('campaign-location-label');
+    if (campLocLabel) {
+      campLocLabel.innerText = city === 'all' ? 'All India & Maharashtra' : `${city} & Nearby Region`;
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async selectCity(cityName) {
+    this.selectedCity = cityName;
+    try {
+      localStorage.setItem('carepulse_patient_selected_city', cityName);
+    } catch (e) {}
+
+    this.updateCityPillUI(cityName);
+
+    await Promise.all([
+      this.renderNearbyHospitals(),
+      this.renderNearbyDoctors(),
+      this.renderVisitingCampaigns()
+    ]);
+
+    if (window.showToast) {
+      const label = cityName === 'all' ? 'All Maharashtra healthcare directory' : `${cityName} medical directory`;
+      window.showToast(`Updated to ${label}`, 'info');
+    }
+  },
+
+  async detectGPSLocation() {
+    const btn = document.getElementById('patient-gps-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Detecting GPS...`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="navigation" class="w-3.5 h-3.5"></i> Detect GPS Location`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      // Determine closest core city in Maharashtra
+      const coreCities = [
+        { name: 'Pune', lat: 18.5204, lng: 73.8567 },
+        { name: 'Mumbai', lat: 19.0760, lng: 72.8777 },
+        { name: 'Nagpur', lat: 21.1458, lng: 79.0882 },
+        { name: 'Yavatmal', lat: 20.3888, lng: 78.1204 },
+        { name: 'Nashik', lat: 19.9975, lng: 73.7898 },
+        { name: 'Aurangabad', lat: 19.8762, lng: 75.3433 }
+      ];
+
+      const toRad = x => (x * Math.PI) / 180;
+      let closest = coreCities[0];
+      let minDistance = 999999;
+
+      for (const c of coreCities) {
+        const dLat = toRad(c.lat - lat);
+        const dLon = toRad(c.lng - lng);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(toRad(lat)) * Math.cos(toRad(c.lat)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const d = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        if (d < minDistance) {
+          minDistance = d;
+          closest = c;
+        }
+      }
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="navigation" class="w-3.5 h-3.5"></i> Detected: ${closest.name}`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      await this.selectCity(closest.name);
+    }, (err) => {
+      console.warn('GPS detection denied or failed:', err);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="navigation" class="w-3.5 h-3.5"></i> Detect GPS Location`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+      alert('Unable to retrieve GPS coordinates. Please select your city from the buttons above.');
+    }, { timeout: 8000 });
+  },
+
+  async renderNearbyHospitals() {
+    const container = document.getElementById('patient-nearby-hospitals-grid');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="col-span-full py-8 text-center text-xs text-slate-400">
+        <div class="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mx-auto mb-2"></div>
+        Finding accredited hospitals & clinics...
+      </div>
+    `;
+
+    const allHosps = await window.CarePulseDB.getHospitals();
+    let approvedHosps = allHosps.filter(h => (h.verification_status || 'approved') === 'approved' && h.is_active !== false);
+
+    if (this.selectedCity && this.selectedCity !== 'all') {
+      const c = this.selectedCity.toLowerCase();
+      approvedHosps = approvedHosps.filter(h =>
+        (h.city_name && h.city_name.toLowerCase().includes(c)) ||
+        (h.district_name && h.district_name.toLowerCase().includes(c)) ||
+        (h.address && h.address.toLowerCase().includes(c))
+      );
+    }
+
+    if (approvedHosps.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full p-8 text-center bg-white rounded-3xl border border-slate-200">
+          <div class="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 mx-auto flex items-center justify-center mb-2">
+            <i data-lucide="building" class="w-6 h-6"></i>
+          </div>
+          <p class="font-bold text-slate-800 text-xs">No Hospital Listed in ${this.selectedCity}</p>
+          <p class="text-slate-400 text-[11px] mt-1">We are actively onboarding verified facilities in this region. View hospitals across Maharashtra below.</p>
+          <button onclick="window.PatientApp.selectCity('all')" class="mt-3 px-4 py-2 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-xl text-xs font-bold transition">
+            View All Verified Hospitals
+          </button>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    container.innerHTML = approvedHosps.map(h => {
+      const facilitiesList = Array.isArray(h.facilities) ? h.facilities : ["ICU", "Emergency 24x7", "Pharmacy 24x7"];
+      return `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="relative h-36 bg-slate-100 overflow-hidden">
+              <img src="${h.cover_image || h.logo_url || 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=800'}" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent"></div>
+              <div class="absolute top-3 left-3">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-600 text-white shadow-sm flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3 h-3"></i> Verified Facility
+                </span>
+              </div>
+              <div class="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold">
+                ${h.total_beds || 50} Beds
+              </div>
+              <div class="absolute bottom-2.5 left-3 right-3 text-white">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-teal-300">${h.hospital_type || 'Multi-Specialty'}</span>
+                <h4 class="font-bold text-sm text-white line-clamp-1">${h.name}</h4>
+              </div>
+            </div>
+
+            <div class="p-5 space-y-3">
+              <div class="flex items-start gap-2 text-[11px] text-slate-600">
+                <i data-lucide="map-pin" class="w-4 h-4 text-slate-400 shrink-0 mt-0.5"></i>
+                <span class="line-clamp-2">${h.address || (h.city_name + ', Maharashtra')}</span>
+              </div>
+
+              ${h.emergency_phone ? `
+                <div class="flex items-center gap-2 text-[11px] text-rose-600 font-semibold">
+                  <i data-lucide="phone-call" class="w-3.5 h-3.5 shrink-0"></i>
+                  <span>Emergency: <strong>${h.emergency_phone}</strong></span>
+                </div>
+              ` : ''}
+
+              <!-- Facilities Badges -->
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                ${facilitiesList.slice(0, 3).map(fac => `
+                  <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                    ${fac}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="p-5 pt-0 border-t border-slate-100 mt-2 flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-slate-600">
+              📍 ${h.city_name || 'Maharashtra'}
+            </span>
+            <a href="../hospitals.html?id=${h.id}" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm">
+              View Hospital & Doctors →
+            </a>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async renderNearbyDoctors() {
+    const container = document.getElementById('patient-nearby-doctors-grid');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="col-span-full py-8 text-center text-xs text-slate-400">
+        <div class="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin mx-auto mb-2"></div>
+        Finding specialist doctors & consultants in your area...
+      </div>
+    `;
+
+    const allDocs = await window.CarePulseDB.getDoctors();
+    let approvedDocs = allDocs.filter(d => (d.verification_status || 'approved') === 'approved' && d.is_active !== false);
+
+    // Retrieve local doctor affiliations to match doctors with additional hospital locations
+    let localAffils = [];
+    try {
+      localAffils = JSON.parse(localStorage.getItem('carepulse_local_doctor_affiliations') || '[]');
+    } catch (e) {}
+
+    if (this.selectedCity && this.selectedCity !== 'all') {
+      const c = this.selectedCity.toLowerCase();
+      approvedDocs = approvedDocs.filter(d => {
+        // Direct city match
+        if (d.city_name && d.city_name.toLowerCase().includes(c)) return true;
+        // Check doctor's hospital affiliations
+        const hasAffilInCity = localAffils.some(a => a.doctor_id === d.id && a.city_name && a.city_name.toLowerCase().includes(c));
+        return hasAffilInCity;
+      });
+    }
+
+    if (approvedDocs.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full p-8 text-center bg-white rounded-3xl border border-slate-200">
+          <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 mx-auto flex items-center justify-center mb-2">
+            <i data-lucide="stethoscope" class="w-6 h-6"></i>
+          </div>
+          <p class="font-bold text-slate-800 text-xs">No Specialist Doctor Listed in ${this.selectedCity}</p>
+          <p class="text-slate-400 text-[11px] mt-1">Browse verified specialists offering online video teleconsultation or in-person clinics across Maharashtra.</p>
+          <button onclick="window.PatientApp.selectCity('all')" class="mt-3 px-4 py-2 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-xl text-xs font-bold transition">
+            View All Doctors Directory
+          </button>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    container.innerHTML = approvedDocs.map(d => {
+      // Find hospital info for this doctor
+      const affil = localAffils.find(a => a.doctor_id === d.id);
+      const hospitalName = affil?.hospital_name || d.hospital_name || 'CarePulse Partner Facility';
+      const cityName = affil?.city_name || d.city_name || 'Maharashtra';
+      const consultationFee = affil?.consultation_fee || d.consultation_fee || 50;
+
+      const bookUrl = `book-appointment.html?doctorId=${d.id}&hospitalId=${affil?.hospital_id || ''}&city=${encodeURIComponent(cityName)}`;
+
+      return `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-sky-300 transition overflow-hidden flex flex-col justify-between">
+          <div class="p-5 space-y-4">
+            <div class="flex items-start gap-4">
+              <img src="${d.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200'}" class="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm flex-shrink-0">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <h4 class="font-bold text-sm text-slate-900 truncate">${d.full_name}</h4>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-teal-600 shrink-0" title="Verified Medical License"></i>
+                </div>
+                <p class="text-xs text-sky-600 font-semibold truncate">${d.specialization}</p>
+                <p class="text-[11px] text-slate-400 truncate">${d.qualification || 'MBBS, MD'}</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                    ${d.experience_years || 8}+ Years Exp
+                  </span>
+                  <span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                    ★ ${d.rating || '4.9'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hospital Affiliation & Location -->
+            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1 text-[11px]">
+              <div class="flex items-start gap-1.5 text-slate-700">
+                <i data-lucide="building-2" class="w-3.5 h-3.5 text-sky-600 flex-shrink-0 mt-0.5"></i>
+                <span class="font-bold leading-tight line-clamp-1">${hospitalName}</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-slate-500 text-[10px]">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                <span>${cityName}, Maharashtra</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Consultation Fee</span>
+                <span class="font-black text-slate-900 text-sm">$${consultationFee}</span>
+              </div>
+              <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Mode</span>
+                <span class="text-[11px] font-semibold text-teal-700 capitalize">${d.consultation_modes || 'Clinic & Video'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-5 pt-0">
+            <a href="${bookUrl}" class="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
+              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> Book Appointment
+            </a>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
   },
 
   async renderVisitingCampaigns(filters = {}) {
@@ -347,13 +695,21 @@ window.PatientApp = {
     if (locLabelEl) locLabelEl.innerText = locationLabel;
 
     const radiusKm = radiusVal === 'all' ? null : Number(radiusVal);
-    const campaigns = await window.CarePulseDB.getCampaigns({
+    let campaigns = await window.CarePulseDB.getCampaigns({
       status: 'approved',
       userLat: radiusKm ? userLat : null,
       userLng: radiusKm ? userLng : null,
       radiusKm: radiusKm,
       specialization: specialty === 'all' ? null : specialty
     });
+
+    if (this.selectedCity && this.selectedCity !== 'all') {
+      const c = this.selectedCity.toLowerCase();
+      const cityMatches = campaigns.filter(x => x.city_name && x.city_name.toLowerCase().includes(c));
+      if (cityMatches.length > 0) {
+        campaigns = cityMatches;
+      }
+    }
 
     if (campaigns.length === 0) {
       container.innerHTML = `

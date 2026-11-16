@@ -132,6 +132,56 @@
       </div>
     </div>
 
+    <!-- PENDING ADMINISTRATIVE VERIFICATION & APPROVAL QUEUE -->
+    <div id="admin-pending-verification-section" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+              <i data-lucide="shield-alert" class="w-4 h-4"></i>
+            </span>
+            <h2 class="text-lg font-black text-slate-900">Pending Administrative Verification Queue</h2>
+            <span id="admin-pending-total-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800">
+              0 Pending
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Review credentials, licenses and campaign applications. Approve with 1-click to publish publicly to patients.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="window.AdminApp.loadPendingVerifications()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Queue
+          </button>
+          <a href="verification.html" class="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold transition flex items-center gap-1">
+            Full Verification Center →
+          </a>
+        </div>
+      </div>
+
+      <!-- Queue Sub-Tabs -->
+      <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <button id="admin-queue-tab-hospitals" onclick="window.AdminApp.switchQueueTab('hospitals')" class="px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-sky-600 text-white shadow-sm">
+          <i data-lucide="building" class="w-3.5 h-3.5"></i> Hospitals & Clinics
+          <span id="badge-queue-hospitals" class="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-black">0</span>
+        </button>
+
+        <button id="admin-queue-tab-doctors" onclick="window.AdminApp.switchQueueTab('doctors')" class="px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <i data-lucide="stethoscope" class="w-3.5 h-3.5"></i> Doctors Verification
+          <span id="badge-queue-doctors" class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-800 font-black">0</span>
+        </button>
+
+        <button id="admin-queue-tab-campaigns" onclick="window.AdminApp.switchQueueTab('campaigns')" class="px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <i data-lucide="megaphone" class="w-3.5 h-3.5"></i> Visiting Campaigns
+          <span id="badge-queue-campaigns" class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-800 font-black">0</span>
+        </button>
+      </div>
+
+      <!-- Active Tab Content Container -->
+      <div id="admin-queue-content" class="overflow-x-auto min-h-[140px]">
+        <!-- Rendered by window.AdminApp.renderQueue() -->
+      </div>
+    </div>
+
     <!-- Chart.js Analytics Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Daily Appointment Volume Chart -->
