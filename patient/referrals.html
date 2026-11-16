@@ -440,7 +440,7 @@
 
       if (window.CarePulseDB?.enableAutoRealtimeSync) {
         window.CarePulseDB.enableAutoRealtimeSync({
-          tables: ['cross_city_referrals', 'appointments'],
+          tables: ['referrals', 'appointments'],
           intervalMs: 15000,
           onRefresh: loadReferrals
         });

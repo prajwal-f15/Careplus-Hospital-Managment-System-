@@ -1218,6 +1218,7 @@ window.CarePulseDB = {
 
   async bookAppointment({
     patient_id,
+    family_member_id = null,
     doctor_id,
     department_id,
     appointment_date,
@@ -1228,7 +1229,9 @@ window.CarePulseDB = {
     priority = 'normal',
     status = 'pending',
     hospital_id = null,
-    referral_id = null
+    referral_id = null,
+    booking_source = 'doctor',
+    campaign_id = null
   }) {
     const sb = getSupabaseClient();
     if (!sb) throw new Error('Supabase client not connected');
@@ -1397,6 +1400,8 @@ window.CarePulseDB = {
 
     if (hospital_id) insertPayload.hospital_id = hospital_id;
     if (referral_id) insertPayload.referral_id = referral_id;
+    if (family_member_id) insertPayload.family_member_id = family_member_id;
+    if (booking_source) insertPayload.booking_source = booking_source;
 
     let appt = null;
     let apptError = null;
@@ -1421,11 +1426,28 @@ window.CarePulseDB = {
             console.debug('Referral status link note:', refErr);
           }
         }
+
+        // If booked via campaign, record conversion
+        if (campaign_id) {
+          try {
+            await this.recordCampaignConversion(campaign_id);
+          } catch (campErr) {}
+        }
         break;
       }
 
       apptError = res.error;
-      const errMsg = res.error.message || '';
+      const errMsg = (res.error.message || '').toLowerCase();
+
+      // Gracefully retry without optional columns if column missing in DB schema
+      if (errMsg.includes('booking_source')) {
+        delete insertPayload.booking_source;
+        continue;
+      }
+      if (errMsg.includes('family_member_id')) {
+        delete insertPayload.family_member_id;
+        continue;
+      }
 
       // Check if double-booking constraint triggered
       if (res.error.code === '23505' || errMsg.includes('idx_prevent_double_booking') || errMsg.includes('unique constraint')) {
@@ -4639,15 +4661,17 @@ window.CarePulseDB = {
     const referralId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'ref-' + Date.now();
     const referralRecord = {
       id: referralId,
+      referral_code: 'REF-' + Math.floor(100000 + Math.random() * 900000),
       patient_id: patientId,
       referring_doctor_id: referringDoctorId,
       receiving_doctor_id: receivingDoctorId,
-      origin_city: originCity || 'Yavatmal',
-      destination_city: destinationCity || 'Mumbai',
-      specialty_required: specialty || 'Specialist Consultation',
+      patient_city: originCity || 'Yavatmal',
+      target_city: destinationCity || 'Mumbai',
+      target_specialty: specialty || 'Specialist Consultation',
       clinical_summary: clinicalSummary,
       provisional_diagnosis: provisionalDiagnosis,
-      referral_urgency: referralUrgency,
+      reason_for_referral: clinicalSummary,
+      urgency: referralUrgency || 'routine',
       status: 'requested',
       patient_consent_given: true,
       patient_consent_timestamp: new Date().toISOString(),
@@ -4657,7 +4681,7 @@ window.CarePulseDB = {
 
     if (sb) {
       try {
-        await sb.from('cross_city_referrals').insert([referralRecord]);
+        await sb.from('referrals').insert([referralRecord]);
       } catch (e) {
         console.warn('createReferralRequest note:', e.message);
       }
@@ -4724,7 +4748,7 @@ window.CarePulseDB = {
 
     try {
       let query = sb
-        .from('cross_city_referrals')
+        .from('referrals')
         .select(`
           *,
           patient:patient_id (id, full_name, email, phone),
@@ -4747,6 +4771,9 @@ window.CarePulseDB = {
         return data.map(r => ({
           ...r,
           patient_name: r.patient?.full_name || 'Patient',
+          origin_city: r.patient_city || r.origin_city || 'Yavatmal',
+          destination_city: r.target_city || r.destination_city || 'Mumbai',
+          specialty_required: r.target_specialty || r.specialty_required || 'Specialist',
           receiving_doctor_name: r.receiving_doctor?.profiles?.full_name || 'Dr. Specialist',
           referring_doctor_name: r.referring_doctor?.profiles?.full_name || 'Referring Physician'
         }));
@@ -4775,7 +4802,7 @@ window.CarePulseDB = {
 
     if (sb) {
       try {
-        await sb.from('cross_city_referrals').update(payload).eq('id', referralId);
+        await sb.from('referrals').update(payload).eq('id', referralId);
       } catch (e) {
         console.warn('updateReferralStatus note:', e.message);
       }
@@ -4980,6 +5007,523 @@ window.CarePulseDB = {
       }
     }
     return { id: cityId, ...updates };
+  },
+
+  // ============================================================================
+  // DOCTOR VISIT CAMPAIGNS & HEALTH RECORDS METHODS (Sections 4 & 9)
+  // ============================================================================
+
+  _getCoreCampaigns() {
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const nextTwoWeeks = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+
+    return [
+      {
+        id: 'e0000000-0000-0000-0000-000000000001',
+        doctor_id: 'd0c11111-1111-1111-1111-111111111111',
+        doctor_name: 'Dr. Rahul Sharma',
+        doctor_photo: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+        doctor_qualification: 'MBBS, MD (Medicine), DM (Cardiology)',
+        doctor_experience: 15,
+        hospital_id: 'c0000000-0000-0000-0000-000000000002',
+        hospital_name: 'CarePulse District Multi-Specialty Hospital',
+        title: 'Senior Interventional Cardiologist 2-Day OPD Visit in Yavatmal',
+        description: 'Dr. Rahul Sharma (Senior Cardiologist from Mumbai) is visiting Yavatmal for advanced heart checkups, ECG evaluation, and hypertension consultations.',
+        city_id: '10000000-0000-0000-0000-000000000004',
+        city_name: 'Yavatmal',
+        district_name: 'Yavatmal',
+        state_name: 'Maharashtra',
+        venue_address: 'Station Road, Near Civil Lines, Yavatmal',
+        latitude: 20.3888,
+        longitude: 78.1204,
+        start_date: today,
+        end_date: nextWeek,
+        target_radius_km: 50,
+        banner_url: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+        campaign_type: 'visiting_specialist',
+        specialization: 'Interventional Cardiology',
+        available_slots: 25,
+        fee: 65.00,
+        status: 'approved',
+        is_active: true,
+        is_sponsored: true,
+        impressions: 420,
+        clicks: 58,
+        conversions: 14,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'e0000000-0000-0000-0000-000000000002',
+        doctor_id: 'd0c22222-2222-2222-2222-222222222222',
+        doctor_name: 'Dr. Priya Patel',
+        doctor_photo: 'https://images.unsplash.com/photo-1594824813629-456cb04c3547?w=400',
+        doctor_qualification: 'MBBS, MD, DM (Neurology)',
+        doctor_experience: 12,
+        hospital_id: 'c0000000-0000-0000-0000-000000000003',
+        hospital_name: 'CarePulse Metro Specialty Center',
+        title: 'Comprehensive Free Neurological Screening Camp',
+        description: 'Free screening for migraine, epilepsy, stroke rehabilitation, and spine disorders with expert neurologist Dr. Priya Patel.',
+        city_id: '10000000-0000-0000-0000-000000000002',
+        city_name: 'Pune',
+        district_name: 'Pune',
+        state_name: 'Maharashtra',
+        venue_address: 'FC Road, Shivaji Nagar, Pune',
+        latitude: 18.5314,
+        longitude: 73.8446,
+        start_date: today,
+        end_date: nextTwoWeeks,
+        target_radius_km: 30,
+        banner_url: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=800',
+        campaign_type: 'medical_camp',
+        specialization: 'Neurology',
+        available_slots: 50,
+        fee: 0.00,
+        status: 'approved',
+        is_active: true,
+        is_sponsored: false,
+        impressions: 680,
+        clicks: 112,
+        conversions: 35,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'e0000000-0000-0000-0000-000000000003',
+        doctor_id: 'd0c33333-3333-3333-3333-333333333333',
+        doctor_name: 'Dr. Vikram Sethi',
+        doctor_photo: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400',
+        doctor_qualification: 'MBBS, MS (Ortho), M.Ch',
+        doctor_experience: 14,
+        hospital_id: 'c0000000-0000-0000-0000-000000000004',
+        hospital_name: 'CarePulse Regional Medical Institute',
+        title: 'Joint Replacement & Arthroscopy Special OPD',
+        description: 'Advanced knee and hip pain consultations, minimally invasive arthroscopy guidance with Senior Orthopedic Surgeon Dr. Vikram Sethi.',
+        city_id: '10000000-0000-0000-0000-000000000003',
+        city_name: 'Nagpur',
+        district_name: 'Nagpur',
+        state_name: 'Maharashtra',
+        venue_address: 'Central Avenue, Ramdaspeth, Nagpur',
+        latitude: 21.1352,
+        longitude: 79.0722,
+        start_date: today,
+        end_date: nextWeek,
+        target_radius_km: 40,
+        banner_url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=800',
+        campaign_type: 'visiting_specialist',
+        specialization: 'Orthopedics',
+        available_slots: 30,
+        fee: 70.00,
+        status: 'approved',
+        is_active: true,
+        is_sponsored: true,
+        impressions: 340,
+        clicks: 44,
+        conversions: 18,
+        created_at: new Date().toISOString()
+      }
+    ];
+  },
+
+  async getCampaigns(filters = {}) {
+    const sb = getSupabaseClient();
+    let list = [];
+
+    if (sb) {
+      try {
+        let q = sb.from('doctor_visit_campaigns').select(`
+          *,
+          doctors (
+            id,
+            specialization,
+            qualification,
+            experience_years,
+            profiles:profiles!doctors_profile_id_fkey (
+              id,
+              full_name,
+              profile_image
+            )
+          ),
+          hospitals (
+            id,
+            name,
+            hospital_type,
+            address,
+            phone,
+            emergency_phone
+          ),
+          cities (
+            id,
+            city_name,
+            district_name,
+            state_name
+          )
+        `);
+
+        if (!filters.includeUnapproved) {
+          q = q.eq('status', 'approved').eq('is_active', true);
+        }
+        if (filters.cityId) {
+          q = q.eq('city_id', filters.cityId);
+        }
+        if (filters.type) {
+          q = q.eq('campaign_type', filters.type);
+        }
+        if (filters.doctorId) {
+          q = q.eq('doctor_id', filters.doctorId);
+        }
+        if (filters.hospitalId) {
+          q = q.eq('hospital_id', filters.hospitalId);
+        }
+
+        const { data, error } = await q.order('created_at', { ascending: false });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          list = data.map(c => ({
+            ...c,
+            doctor_name: c.doctors?.profiles?.full_name || 'Dr. Specialist',
+            doctor_photo: c.doctors?.profiles?.profile_image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400',
+            doctor_qualification: c.doctors?.qualification || 'MBBS, MD',
+            doctor_experience: c.doctors?.experience_years || 10,
+            hospital_name: c.hospitals?.name || 'CarePulse Partner Facility',
+            city_name: c.cities?.city_name || 'Regional City',
+            district_name: c.cities?.district_name || 'Regional District',
+            state_name: c.cities?.state_name || 'Maharashtra'
+          }));
+        }
+      } catch (e) {
+        console.warn('Supabase getCampaigns note:', e.message);
+      }
+    }
+
+    if (list.length === 0) {
+      list = this._getCoreCampaigns();
+    }
+
+    // Merge any locally stored campaigns
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
+        const existingIds = new Set(list.map(c => c.id));
+        for (const lc of local) {
+          if (!existingIds.has(lc.id)) {
+            list.unshift(lc);
+            existingIds.add(lc.id);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Filter by active status if not explicitly including unapproved
+    if (!filters.includeUnapproved) {
+      const today = new Date().toISOString().split('T')[0];
+      list = list.filter(c => (c.status === 'approved' && c.is_active !== false && (!c.end_date || c.end_date >= today)));
+    }
+
+    // Distance calculation if user coordinates provided
+    if (filters.userLat && filters.userLng) {
+      const toRad = x => (x * Math.PI) / 180;
+      list = list.map(c => {
+        if (!c.latitude || !c.longitude) return { ...c, distanceKm: 999 };
+        const R = 6371; // Earth radius km
+        const dLat = toRad(c.latitude - filters.userLat);
+        const dLon = toRad(c.longitude - filters.userLng);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(toRad(filters.userLat)) * Math.cos(toRad(c.latitude)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return { ...c, distanceKm: Math.round(dist * 10) / 10 };
+      });
+
+      if (filters.radiusKm) {
+        list = list.filter(c => (c.distanceKm !== undefined && c.distanceKm <= filters.radiusKm));
+      }
+
+      list.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    }
+
+    return list;
+  },
+
+  async getCampaignById(campaignId) {
+    const all = await this.getCampaigns({ includeUnapproved: true });
+    return all.find(c => c.id === campaignId) || null;
+  },
+
+  async createCampaign(payload) {
+    const sb = getSupabaseClient();
+    const newId = 'e' + Date.now().toString().slice(-12).padStart(35, '0');
+    const entity = {
+      id: payload.id || newId,
+      doctor_id: payload.doctor_id || null,
+      hospital_id: payload.hospital_id || null,
+      title: payload.title,
+      description: payload.description || '',
+      city_id: payload.city_id || null,
+      venue_address: payload.venue_address || payload.address || '',
+      latitude: payload.latitude || null,
+      longitude: payload.longitude || null,
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      target_radius_km: payload.target_radius_km || 50,
+      banner_url: payload.banner_url || 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=800',
+      campaign_type: payload.campaign_type || 'visiting_specialist',
+      specialization: payload.specialization || 'General Healthcare',
+      available_slots: parseInt(payload.available_slots, 10) || 20,
+      fee: parseFloat(payload.fee) || 0,
+      status: payload.status || 'pending',
+      is_active: payload.is_active || false,
+      is_sponsored: payload.is_sponsored || false,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      created_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('doctor_visit_campaigns').insert(entity).select().maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('createCampaign note:', e.message);
+      }
+    }
+
+    // Persist to localStorage
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
+        local.unshift(entity);
+        localStorage.setItem('carepulse_local_campaigns', JSON.stringify(local));
+      } catch (e) {}
+    }
+
+    return entity;
+  },
+
+  async verifyCampaign({ campaignId, adminId, decision, reason }) {
+    if (!reason || !reason.trim()) {
+      throw new Error('Mandatory justification reason is required for administrative audit.');
+    }
+    const valid = ['approved', 'rejected', 'cancelled', 'suspended'];
+    if (!valid.includes(decision)) {
+      throw new Error(`Invalid decision: ${decision}`);
+    }
+
+    const sb = getSupabaseClient();
+    const isActive = (decision === 'approved');
+
+    if (sb) {
+      try {
+        await sb.from('doctor_visit_campaigns').update({
+          status: decision,
+          is_active: isActive,
+          admin_reviewed_by: adminId,
+          admin_review_reason: reason.trim(),
+          admin_reviewed_at: new Date().toISOString()
+        }).eq('id', campaignId);
+      } catch (e) {
+        console.warn('verifyCampaign db update note:', e.message);
+      }
+    }
+
+    // Update in local store
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_campaigns') || '[]');
+        const idx = local.findIndex(c => c.id === campaignId);
+        if (idx >= 0) {
+          local[idx].status = decision;
+          local[idx].is_active = isActive;
+          localStorage.setItem('carepulse_local_campaigns', JSON.stringify(local));
+        }
+      } catch (e) {}
+    }
+
+    await this.logAuditEvent({
+      action: `campaign_verification_${decision}`,
+      entity_type: 'campaign',
+      entity_id: campaignId,
+      details: { adminId, decision, reason: reason.trim(), timestamp: new Date().toISOString() }
+    });
+
+    return { success: true, campaignId, decision };
+  },
+
+  async recordCampaignImpression(campaignId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.rpc('increment_campaign_impression', { cid: campaignId });
+      } catch (e) {}
+    }
+  },
+
+  async recordCampaignClick(campaignId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.rpc('increment_campaign_click', { cid: campaignId });
+      } catch (e) {}
+    }
+  },
+
+  async recordCampaignConversion(campaignId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.rpc('increment_campaign_conversion', { cid: campaignId });
+      } catch (e) {}
+    }
+  },
+
+  // ============================================================================
+  // PATIENT HEALTH RECORDS METHODS (Section 4.4)
+  // ============================================================================
+
+  async getHealthRecords(patientId, familyMemberId = null) {
+    const sb = getSupabaseClient();
+    let records = [];
+
+    if (sb && patientId) {
+      try {
+        let q = sb.from('patient_health_records').select('*').eq('patient_id', patientId);
+        if (familyMemberId) {
+          q = q.eq('family_member_id', familyMemberId);
+        }
+        const { data, error } = await q.order('record_date', { ascending: false });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          records = data;
+        }
+      } catch (e) {
+        console.warn('getHealthRecords note:', e.message);
+      }
+    }
+
+    // Default mock records for demo user
+    if (records.length === 0) {
+      records = [
+        {
+          id: 'hr-001',
+          patient_id: patientId || '99999999-9999-9999-9999-999999999991',
+          record_type: 'lab_report',
+          title: 'Comprehensive Lipid & Blood Profile',
+          doctor_name: 'Dr. Rahul Sharma',
+          hospital_name: 'CarePulse Central Hospital',
+          record_date: '2026-11-10',
+          file_name: 'Lipid_Panel_Nov2026.pdf',
+          file_size_kb: 420,
+          file_url: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800',
+          notes: 'Cholesterol levels optimal. Continue low-sodium diet.',
+          doctor_shared: true,
+          created_at: '2026-11-10T10:00:00Z'
+        },
+        {
+          id: 'hr-002',
+          patient_id: patientId || '99999999-9999-9999-9999-999999999991',
+          record_type: 'prescription',
+          title: 'Cardiology Consultation Prescription',
+          doctor_name: 'Dr. Rahul Sharma',
+          hospital_name: 'CarePulse Central Hospital',
+          record_date: '2026-11-08',
+          file_name: 'Prescription_CARD_102.pdf',
+          file_size_kb: 180,
+          file_url: '#',
+          notes: 'Amlodipine 5mg once daily for 30 days.',
+          doctor_shared: true,
+          created_at: '2026-11-08T11:30:00Z'
+        },
+        {
+          id: 'hr-003',
+          patient_id: patientId || '99999999-9999-9999-9999-999999999991',
+          record_type: 'radiology',
+          title: 'Chest X-Ray PA View Digital Scan',
+          doctor_name: 'Dr. Priya Patel',
+          hospital_name: 'CarePulse Metro Specialty Center',
+          record_date: '2026-10-24',
+          file_name: 'Chest_XRay_PA.jpg',
+          file_size_kb: 1250,
+          file_url: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=800',
+          notes: 'Normal bronchovascular markings. No active consolidation.',
+          doctor_shared: false,
+          created_at: '2026-10-24T14:15:00Z'
+        }
+      ];
+    }
+
+    // Merge any locally added records
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_health_records') || '[]');
+        const filtered = local.filter(r => !patientId || r.patient_id === patientId);
+        const existingIds = new Set(records.map(r => r.id));
+        for (const lr of filtered) {
+          if (!existingIds.has(lr.id)) {
+            records.unshift(lr);
+            existingIds.add(lr.id);
+          }
+        }
+      } catch (e) {}
+    }
+
+    return records;
+  },
+
+  async addHealthRecord(payload) {
+    const sb = getSupabaseClient();
+    const newRecord = {
+      id: payload.id || 'hr-' + Date.now(),
+      patient_id: payload.patient_id,
+      family_member_id: payload.family_member_id || null,
+      record_type: payload.record_type || 'other',
+      title: payload.title,
+      doctor_name: payload.doctor_name || 'CarePulse Specialist',
+      hospital_name: payload.hospital_name || 'CarePulse Partner Facility',
+      record_date: payload.record_date || new Date().toISOString().split('T')[0],
+      file_url: payload.file_url || null,
+      file_name: payload.file_name || 'Document_' + Date.now() + '.pdf',
+      file_size_kb: payload.file_size_kb || 250,
+      notes: payload.notes || '',
+      doctor_shared: payload.doctor_shared || false,
+      created_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('patient_health_records').insert(newRecord).select().maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('addHealthRecord note:', e.message);
+      }
+    }
+
+    // Store in localStorage fallback
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_health_records') || '[]');
+        local.unshift(newRecord);
+        localStorage.setItem('carepulse_local_health_records', JSON.stringify(local));
+      } catch (e) {}
+    }
+
+    return newRecord;
+  },
+
+  async deleteHealthRecord(id, patientId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('patient_health_records').delete().eq('id', id).eq('patient_id', patientId);
+      } catch (e) {}
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('carepulse_local_health_records') || '[]');
+        const updated = local.filter(r => r.id !== id);
+        localStorage.setItem('carepulse_local_health_records', JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    return { success: true, id };
   }
 };
 

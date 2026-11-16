@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Health Records - CarePulse Patient Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <!-- PATIENT NAVBAR -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="cross" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Patient Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-5 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="book-appointment.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar-plus" class="w-4 h-4"></i> Book</a>
+          <a href="appointments.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="health-records.html" class="text-sky-600 flex items-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4"></i> Health Records</a>
+          <a href="online-consultation.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="video" class="w-4 h-4"></i> Video Consult</a>
+          <a href="family-members.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Family</a>
+          <a href="referrals.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="git-pull-request" class="w-4 h-4"></i> Referrals</a>
+          <a href="queue-status.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="activity" class="w-4 h-4"></i> Queue</a>
+          <a href="notifications.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="bell" class="w-4 h-4"></i> Notifications</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="user" class="w-4 h-4"></i> Profile</a>
+        </nav>
+
+        <div id="nav-auth-section" class="flex items-center gap-3"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6 pb-24 md:pb-8">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">My Health Records & Reports</h1>
+        <p class="text-xs text-slate-500 mt-1">Securely manage your digital prescriptions, diagnostic lab tests, radiology scans, and hospital discharge summaries.</p>
+      </div>
+
+      <button onclick="window.HealthRecordsApp.openAddModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-md">
+        <i data-lucide="upload" class="w-4 h-4"></i> Upload Health Record
+      </button>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+          <i data-lucide="folder-archive" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Records</span>
+          <div id="kpi-total-records" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <i data-lucide="pill" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Prescriptions</span>
+          <div id="kpi-prescriptions-count" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+          <i data-lucide="flask-conical" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Lab Reports</span>
+          <div id="kpi-lab-reports-count" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+          <i data-lucide="scan-line" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Scans & Others</span>
+          <div id="kpi-scans-count" class="text-xl font-black text-slate-900">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="relative w-full sm:w-80">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        <input type="text" id="record-search-input" oninput="window.HealthRecordsApp.renderRecords()" placeholder="Search title, doctor, clinic..." class="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <select id="record-type-filter" onchange="window.HealthRecordsApp.renderRecords()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all" selected>All Record Types</option>
+          <option value="prescription">Prescriptions</option>
+          <option value="lab_report">Lab Reports</option>
+          <option value="radiology">Scans & X-Rays</option>
+          <option value="discharge_summary">Discharge Summaries</option>
+          <option value="other">Other Documents</option>
+        </select>
+
+        <select id="record-family-filter" onchange="window.HealthRecordsApp.renderRecords()" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <option value="all" selected>All Family Members</option>
+          <option value="self">Myself Only</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Health Records Grid Container -->
+    <div id="records-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Rendered dynamically -->
+    </div>
+  </main>
+
+  <!-- ADD / UPLOAD HEALTH RECORD MODAL -->
+  <div id="upload-record-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-5 border border-slate-200 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+            <i data-lucide="file-plus-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-slate-900">Upload Health Document</h3>
+            <span class="text-xs text-slate-400">Add prescription, lab report, or scan</span>
+          </div>
+        </div>
+        <button type="button" onclick="window.HealthRecordsApp.closeAddModal()" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="add-record-form" onsubmit="window.HealthRecordsApp.submitNewRecord(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Document Title *</label>
+          <input type="text" id="modal-record-title" required placeholder="e.g., Blood Glucose & HbA1c Report" class="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Record Type *</label>
+            <select id="modal-record-type" required class="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="prescription">Prescription</option>
+              <option value="lab_report" selected>Lab Test Report</option>
+              <option value="radiology">Radiology / Scan (X-Ray, MRI)</option>
+              <option value="discharge_summary">Discharge Summary</option>
+              <option value="other">Other Document</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Record For</label>
+            <select id="modal-record-family" class="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="self">Myself</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Attending Doctor</label>
+            <input type="text" id="modal-record-doctor" placeholder="e.g., Dr. Rahul Sharma" class="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Hospital / Diagnostic Lab</label>
+            <input type="text" id="modal-record-hospital" placeholder="e.g., CarePulse Central Lab" class="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Date of Test / Prescription *</label>
+          <input type="date" id="modal-record-date" required class="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Select File (PDF, PNG, JPG)</label>
+          <input type="file" id="modal-record-file" accept=".pdf,.png,.jpg,.jpeg" class="w-full p-2 text-xs text-slate-600 rounded-xl border border-slate-200 bg-slate-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Clinical Notes or Observations</label>
+          <textarea id="modal-record-notes" rows="2" placeholder="e.g., Fasting blood sugar 98 mg/dL, normal range." class="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 focus:bg-white"></textarea>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold text-slate-800 block">Share with Attending Specialists</span>
+            <span class="text-[10px] text-slate-500">Allow consulting doctors on CarePulse to view this record during appointment.</span>
+          </div>
+          <input type="checkbox" id="modal-record-share" checked class="w-4 h-4 text-sky-600 rounded focus:ring-sky-500">
+        </div>
+
+        <div id="modal-upload-error" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold"></div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="window.HealthRecordsApp.closeAddModal()" class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" id="modal-upload-submit-btn" class="px-5 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md transition flex items-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Save Record
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse Central Hospital. All rights reserved.
+  </footer>
+
+  <!-- MOBILE BOTTOM NAVIGATION (Section 11) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 shadow-2xl flex items-center justify-around text-[10px] font-bold text-slate-500">
+    <a href="index.html" class="flex flex-col items-center py-1.5 px-2 hover:text-sky-600 transition">
+      <i data-lucide="home" class="w-5 h-5 mb-0.5"></i>
+      <span>Home</span>
+    </a>
+    <a href="../doctors.html" class="flex flex-col items-center py-1.5 px-2 hover:text-sky-600 transition">
+      <i data-lucide="stethoscope" class="w-5 h-5 mb-0.5"></i>
+      <span>Doctors</span>
+    </a>
+    <a href="../hospitals.html" class="flex flex-col items-center py-1.5 px-2 hover:text-sky-600 transition">
+      <i data-lucide="building-2" class="w-5 h-5 mb-0.5"></i>
+      <span>Hospitals</span>
+    </a>
+    <a href="appointments.html" class="flex flex-col items-center py-1.5 px-2 hover:text-sky-600 transition">
+      <i data-lucide="calendar" class="w-5 h-5 mb-0.5"></i>
+      <span>Bookings</span>
+    </a>
+    <a href="health-records.html" class="flex flex-col items-center py-1.5 px-2 text-sky-600">
+      <i data-lucide="file-text" class="w-5 h-5 mb-0.5"></i>
+      <span>Records</span>
+    </a>
+  </nav>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    window.HealthRecordsApp = {
+      records: [],
+      familyMembers: [],
+      currentUser: null,
+
+      async init() {
+        this.currentUser = window.Auth?.getCurrentUser();
+        if (!this.currentUser) return;
+
+        // Populate family members
+        try {
+          this.familyMembers = await window.CarePulseDB.getFamilyMembers(this.currentUser.id);
+          const famSelect = document.getElementById('record-family-filter');
+          const modalFamSelect = document.getElementById('modal-record-family');
+          this.familyMembers.forEach(fm => {
+            const opt1 = document.createElement('option');
+            opt1.value = fm.id;
+            opt1.innerText = `${fm.name} (${fm.relationship})`;
+            famSelect?.appendChild(opt1);
+
+            const opt2 = document.createElement('option');
+            opt2.value = fm.id;
+            opt2.innerText = `${fm.name} (${fm.relationship})`;
+            modalFamSelect?.appendChild(opt2);
+          });
+        } catch (e) {}
+
+        await this.refresh();
+      },
+
+      async refresh() {
+        this.records = await window.CarePulseDB.getHealthRecords(this.currentUser?.id);
+        this.updateKPIs();
+        this.renderRecords();
+      },
+
+      updateKPIs() {
+        const total = this.records.length;
+        const prescriptions = this.records.filter(r => r.record_type === 'prescription').length;
+        const labs = this.records.filter(r => r.record_type === 'lab_report').length;
+        const scans = this.records.filter(r => ['radiology', 'discharge_summary', 'other'].includes(r.record_type)).length;
+
+        document.getElementById('kpi-total-records').innerText = total;
+        document.getElementById('kpi-prescriptions-count').innerText = prescriptions;
+        document.getElementById('kpi-lab-reports-count').innerText = labs;
+        document.getElementById('kpi-scans-count').innerText = scans;
+      },
+
+      renderRecords() {
+        const container = document.getElementById('records-grid-container');
+        if (!container) return;
+
+        const query = (document.getElementById('record-search-input')?.value || '').toLowerCase().trim();
+        const typeFilter = document.getElementById('record-type-filter')?.value || 'all';
+        const familyFilter = document.getElementById('record-family-filter')?.value || 'all';
+
+        let filtered = this.records.filter(r => {
+          const matchesType = (typeFilter === 'all') || (r.record_type === typeFilter);
+          const matchesFamily = (familyFilter === 'all') ||
+            (familyFilter === 'self' && !r.family_member_id) ||
+            (r.family_member_id === familyFilter);
+          const matchesQuery = !query ||
+            (r.title && r.title.toLowerCase().includes(query)) ||
+            (r.doctor_name && r.doctor_name.toLowerCase().includes(query)) ||
+            (r.hospital_name && r.hospital_name.toLowerCase().includes(query)) ||
+            (r.notes && r.notes.toLowerCase().includes(query));
+          return matchesType && matchesFamily && matchesQuery;
+        });
+
+        if (filtered.length === 0) {
+          container.innerHTML = `
+            <div class="col-span-full py-12 text-center bg-white rounded-3xl border border-slate-200">
+              <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 mx-auto flex items-center justify-center mb-2">
+                <i data-lucide="file-question" class="w-6 h-6"></i>
+              </div>
+              <p class="font-bold text-slate-700 text-xs">No health records found matching your filters</p>
+              <p class="text-slate-400 text-[11px] mt-1">Upload your diagnostic tests or prescriptions to keep your medical timeline organized.</p>
+              <button onclick="window.HealthRecordsApp.openAddModal()" class="mt-3 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition">
+                + Upload New Record
+              </button>
+            </div>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+          return;
+        }
+
+        container.innerHTML = filtered.map(r => {
+          const typeIcons = {
+            prescription: 'pill',
+            lab_report: 'flask-conical',
+            radiology: 'scan-line',
+            discharge_summary: 'file-text',
+            other: 'paperclip'
+          };
+          const icon = typeIcons[r.record_type] || 'file-text';
+          const typeLabels = {
+            prescription: 'Prescription',
+            lab_report: 'Lab Report',
+            radiology: 'Radiology / Scan',
+            discharge_summary: 'Discharge Summary',
+            other: 'Medical Document'
+          };
+          const typeBadge = typeLabels[r.record_type] || 'Document';
+
+          return `
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-sky-300 transition p-5 space-y-4 flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                      ${typeBadge}
+                    </span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${r.doctor_shared ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}">
+                      ${r.doctor_shared ? '✓ Doctor Shared' : '🔒 Private'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 class="font-bold text-sm text-slate-900 leading-snug">${r.title}</h4>
+                  <p class="text-xs text-slate-500 mt-1">${r.doctor_name || 'CarePulse Specialist'} • ${r.hospital_name || 'CarePulse Facility'}</p>
+                </div>
+
+                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1 text-[11px] text-slate-600">
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-400">Date:</span>
+                    <strong class="text-slate-800">${r.record_date}</strong>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-400">File:</span>
+                    <span class="font-mono text-[10px] text-slate-700 truncate max-w-[150px]">${r.file_name} (${r.file_size_kb || 250} KB)</span>
+                  </div>
+                  ${r.notes ? `
+                    <div class="pt-1 border-t border-slate-200/60 text-slate-500 text-[10px] italic">
+                      "${r.notes}"
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button onclick="alert('Viewing document: ${r.file_name}')" class="px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                  <i data-lucide="eye" class="w-3.5 h-3.5"></i> View
+                </button>
+                <button onclick="window.HealthRecordsApp.deleteRecord('${r.id}')" class="px-2.5 py-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition" title="Delete record">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      openAddModal() {
+        document.getElementById('modal-record-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('modal-upload-error').classList.add('hidden');
+        document.getElementById('upload-record-modal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+      },
+
+      closeAddModal() {
+        document.getElementById('upload-record-modal').classList.add('hidden');
+      },
+
+      async submitNewRecord(e) {
+        e.preventDefault();
+        const title = document.getElementById('modal-record-title').value.trim();
+        const type = document.getElementById('modal-record-type').value;
+        const famVal = document.getElementById('modal-record-family').value;
+        const doctor = document.getElementById('modal-record-doctor').value.trim();
+        const hospital = document.getElementById('modal-record-hospital').value.trim();
+        const date = document.getElementById('modal-record-date').value;
+        const notes = document.getElementById('modal-record-notes').value.trim();
+        const shared = document.getElementById('modal-record-share').checked;
+        const fileInput = document.getElementById('modal-record-file');
+        const fileName = (fileInput?.files && fileInput.files[0]) ? fileInput.files[0].name : `${title.replace(/\s+/g, '_')}.pdf`;
+
+        const btn = document.getElementById('modal-upload-submit-btn');
+        btn.disabled = true;
+        btn.innerText = 'Saving...';
+
+        try {
+          await window.CarePulseDB.addHealthRecord({
+            patient_id: this.currentUser?.id,
+            family_member_id: famVal !== 'self' ? famVal : null,
+            record_type: type,
+            title: title,
+            doctor_name: doctor || 'Consulting Specialist',
+            hospital_name: hospital || 'CarePulse Medical Network',
+            record_date: date,
+            file_name: fileName,
+            file_size_kb: Math.floor(Math.random() * 800) + 150,
+            notes: notes,
+            doctor_shared: shared
+          });
+
+          this.closeAddModal();
+          await this.refresh();
+          if (window.showToast) window.showToast('Medical record saved successfully!', 'success');
+        } catch (err) {
+          const errBox = document.getElementById('modal-upload-error');
+          errBox.innerText = err.message || 'Failed to save medical record';
+          errBox.classList.remove('hidden');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Save Record';
+          if (window.lucide) window.lucide.createIcons();
+        }
+      },
+
+      async deleteRecord(id) {
+        if (!confirm('Are you sure you want to remove this medical record?')) return;
+        await window.CarePulseDB.deleteHealthRecord(id, this.currentUser?.id);
+        await this.refresh();
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.Auth.requireAuth(['patient']);
+      window.HealthRecordsApp.init();
+    });
+  </script>
+</body>
+</html>

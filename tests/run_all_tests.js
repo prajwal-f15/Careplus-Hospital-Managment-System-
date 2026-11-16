@@ -15,7 +15,8 @@ const testSuites = [
   { name: '4. Selected Features & Chat Integration (32 Checks)', script: 'tests/test_chat_and_workflow.js' },
   { name: '5. Patient, Doctor & Admin E2E Journeys (Features 7, 8, 9)', script: 'tests/workflows_e2e_test.js' },
   { name: '6. Features 1-6, 10, 11 Comprehensive Assertions (57 Checks)', script: 'tests/test_runner.js' },
-  { name: '7. Live Database, RLS Security & Double-Booking Guard (14 Checks)', script: 'tests/test_database_security.js' }
+  { name: '7. Live Database, RLS Security & Double-Booking Guard (14 Checks)', script: 'tests/test_database_security.js' },
+  { name: '8. Visiting Campaigns, Health Records & Mobile Navigation Suite', script: 'tests/test_campaigns_and_patient_dashboard.js' }
 ];
 
 console.log('======================================================================');

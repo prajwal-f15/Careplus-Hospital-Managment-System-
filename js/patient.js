@@ -309,6 +309,155 @@ window.PatientApp = {
     }
 
     if (window.lucide) window.lucide.createIcons();
+
+    // Render Visiting Specialist Campaigns (Section 9)
+    await this.renderVisitingCampaigns();
+  },
+
+  async renderVisitingCampaigns(filters = {}) {
+    const container = document.getElementById('visiting-campaigns-grid');
+    if (!container) return;
+
+    const specialty = filters.specialty || document.getElementById('campaign-specialty-filter')?.value || 'all';
+    const radiusVal = filters.radius || document.getElementById('campaign-radius-filter')?.value || 'all';
+
+    container.innerHTML = `
+      <div class="col-span-full py-8 text-center text-xs text-slate-400">
+        <div class="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin mx-auto mb-2"></div>
+        Discovering visiting doctors & medical camps in your region...
+      </div>
+    `;
+
+    let userLat = 20.3888;
+    let userLng = 78.1204;
+    let locationLabel = 'Yavatmal & Region';
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const storedLoc = JSON.parse(localStorage.getItem('carepulse_user_location') || 'null');
+        if (storedLoc?.latitude && storedLoc?.longitude) {
+          userLat = Number(storedLoc.latitude);
+          userLng = Number(storedLoc.longitude);
+          locationLabel = storedLoc.city_name || locationLabel;
+        }
+      } catch (e) {}
+    }
+
+    const locLabelEl = document.getElementById('campaign-location-label');
+    if (locLabelEl) locLabelEl.innerText = locationLabel;
+
+    const radiusKm = radiusVal === 'all' ? null : Number(radiusVal);
+    const campaigns = await window.CarePulseDB.getCampaigns({
+      status: 'approved',
+      userLat: radiusKm ? userLat : null,
+      userLng: radiusKm ? userLng : null,
+      radiusKm: radiusKm,
+      specialization: specialty === 'all' ? null : specialty
+    });
+
+    if (campaigns.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full p-8 text-center bg-white rounded-3xl border border-slate-200">
+          <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 mx-auto flex items-center justify-center mb-2">
+            <i data-lucide="calendar" class="w-6 h-6"></i>
+          </div>
+          <p class="font-bold text-slate-700 text-xs">No Visiting Doctor Campaigns Matching Current Radius</p>
+          <p class="text-slate-400 text-[11px] mt-1">Try selecting <strong>"All India / All Distances"</strong> or a different specialization to see visiting doctors from Mumbai and Pune.</p>
+          <button onclick="document.getElementById('campaign-radius-filter').value='all'; document.getElementById('campaign-specialty-filter').value='all'; window.PatientApp.renderVisitingCampaigns();" class="mt-3 px-4 py-2 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-xl text-xs font-bold transition">
+            View All Active Campaigns Across India
+          </button>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    container.innerHTML = campaigns.map(c => {
+      if (window.CarePulseDB.recordCampaignImpression) {
+        window.CarePulseDB.recordCampaignImpression(c.id);
+      }
+
+      const isCamp = c.campaign_type === 'medical_camp' || c.fee === 0;
+      const typeBadge = isCamp
+        ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-sm flex items-center gap-1"><i data-lucide="gift" class="w-3 h-3"></i> Free Medical Camp</span>`
+        : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-600 text-white shadow-sm flex items-center gap-1"><i data-lucide="award" class="w-3 h-3"></i> Visiting Specialist</span>`;
+
+      const feeDisplay = (Number(c.fee) === 0)
+        ? `<span class="text-xs font-black text-emerald-600">FREE Consultation</span>`
+        : `<span class="text-xs font-black text-slate-900">$${c.fee} <span class="text-[10px] text-slate-400 font-normal">OPD fee</span></span>`;
+
+      const bookUrl = `book-appointment.html?doctorId=${c.doctor_id}&hospitalId=${c.hospital_id}&campaignId=${c.id}&date=${c.start_date}&reason=${encodeURIComponent('Visiting Specialist OPD: ' + (c.specialization || c.title))}&source=doctor`;
+
+      return `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-sky-300 transition overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="relative h-36 bg-slate-100 overflow-hidden">
+              <img src="${c.banner_url || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800'}" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent"></div>
+              <div class="absolute top-3 left-3">
+                ${typeBadge}
+              </div>
+              ${c.target_radius_km ? `
+                <div class="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold">
+                  Within ${c.target_radius_km} KM
+                </div>
+              ` : ''}
+              <div class="absolute bottom-2.5 left-3 right-3 text-white">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-sky-300">${c.specialization || 'Super Specialist'}</span>
+                <h4 class="font-bold text-xs text-white line-clamp-1">${c.title}</h4>
+              </div>
+            </div>
+
+            <div class="p-5 space-y-3">
+              <div class="flex items-center gap-3">
+                <img src="${c.doctor_photo || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200'}" class="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-sm flex-shrink-0">
+                <div class="min-w-0">
+                  <h5 class="font-bold text-sm text-slate-900 truncate">${c.doctor_name}</h5>
+                  <p class="text-[11px] text-slate-500 truncate">${c.doctor_qualification || 'MD, Super Specialist'}</p>
+                  <p class="text-[10px] text-sky-600 font-bold">${c.doctor_experience || 10}+ Years Experience</p>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5 text-[11px]">
+                <div class="flex items-start gap-1.5 text-slate-700">
+                  <i data-lucide="building-2" class="w-3.5 h-3.5 text-sky-600 flex-shrink-0 mt-0.5"></i>
+                  <span class="font-bold leading-tight line-clamp-1">${c.hospital_name}</span>
+                </div>
+                <div class="flex items-start gap-1.5 text-slate-500 text-[10px]">
+                  <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                  <span class="line-clamp-1">${c.venue_address || (c.city_name + ', ' + c.state_name)}</span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                <div class="p-2 rounded-xl bg-sky-50/70 border border-sky-100/60">
+                  <span class="text-[9px] uppercase font-bold text-sky-600 block">Visiting Dates</span>
+                  <strong class="text-slate-800 text-[10px] block mt-0.5">${c.start_date}</strong>
+                  <span class="text-[9px] text-slate-500">to ${c.end_date}</span>
+                </div>
+                <div class="p-2 rounded-xl bg-teal-50/70 border border-teal-100/60">
+                  <span class="text-[9px] uppercase font-bold text-teal-600 block">Available Slots</span>
+                  <strong class="text-teal-900 text-[10px] block mt-0.5">${c.available_slots || 20} Slots</strong>
+                  <span class="text-[9px] text-teal-700 font-medium">Limited capacity</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-5 pt-0 border-t border-slate-100 mt-2 flex items-center justify-between gap-2">
+            <div>
+              ${feeDisplay}
+            </div>
+            <a href="${bookUrl}" onclick="window.CarePulseDB.recordCampaignClick('${c.id}')" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5">
+              <span>Book Visit</span>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </a>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
   },
 
   // --------------------------------------------------------------------------
@@ -353,10 +502,16 @@ window.PatientApp = {
 
     // Set min date to local today (timezone-safe)
     const todayStr = window.CarePulseDB.getLocalTodayDate();
+    const preDate = urlParams.get('date');
     if (dateInput) {
       dateInput.min = todayStr;
-      dateInput.value = todayStr;
-      this.bookingState.date = todayStr;
+      dateInput.value = (preDate && preDate >= todayStr) ? preDate : todayStr;
+      this.bookingState.date = dateInput.value;
+    }
+
+    const preReason = urlParams.get('reason');
+    if (preReason && document.getElementById('wizard-reason-input')) {
+      document.getElementById('wizard-reason-input').value = decodeURIComponent(preReason);
     }
 
     // Populate Family Members if present
@@ -604,6 +759,8 @@ window.PatientApp = {
       try {
         const preReferralId = urlParams.get('referralId') || null;
         const preHospitalId = urlParams.get('hospitalId') || null;
+        const preCampaignId = urlParams.get('campaignId') || null;
+        const preSource = urlParams.get('source') || (preHospitalId ? 'hospital' : 'doctor');
         const selectedHospitalId = document.getElementById('wizard-hospital-select')?.value || preHospitalId || null;
 
         const appointment = await window.CarePulseDB.createAppointment({
@@ -615,8 +772,15 @@ window.PatientApp = {
           reason: reason.trim(),
           symptoms: symptoms ? symptoms.trim() : '',
           referral_id: preReferralId,
-          hospital_id: selectedHospitalId
+          hospital_id: selectedHospitalId,
+          booking_source: preSource,
+          campaign_id: preCampaignId
         });
+
+        // Track conversion if booked from a visiting doctor campaign
+        if (preCampaignId && window.CarePulseDB.recordCampaignConversion) {
+          await window.CarePulseDB.recordCampaignConversion(preCampaignId);
+        }
 
         // Show Booking Request Modal (Pending Doctor Confirmation)
         this.showBookingSuccessModal(appointment);
