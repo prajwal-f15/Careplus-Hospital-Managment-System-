@@ -761,6 +761,23 @@ window.DoctorApp = {
     if (!container) return;
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const hospSelect = document.getElementById('doctor-schedule-hospital-select');
+    if (hospSelect && this.doctorRecord?.id) {
+      try {
+        const affiliations = await window.CarePulseDB.getDoctorHospitals(this.doctorRecord.id);
+        if (affiliations && affiliations.length > 0) {
+          hospSelect.innerHTML = affiliations.map(a => {
+            const hospName = a.hospitals?.name || a.hospital_name || 'CarePulse Central Hospital';
+            return `<option value="${a.hospital_id}">${hospName} (${a.is_primary ? 'Primary Base' : 'Visiting Center'})</option>`;
+          }).join('');
+        } else {
+          hospSelect.innerHTML = `<option value="default">CarePulse Central Hospital (Main Campus)</option>`;
+        }
+      } catch (e) {
+        hospSelect.innerHTML = `<option value="default">CarePulse Central Hospital (Main Campus)</option>`;
+      }
+    }
+
     const availability = await window.CarePulseDB.getDoctorAvailability(this.doctorRecord.id);
 
     const form = document.getElementById('doctor-schedule-form');
@@ -947,6 +964,10 @@ window.DoctorApp = {
     setVal('doc-fee', doc.consultation_fee);
     setVal('doc-room', doc.room_number);
     setVal('doc-about', doc.about);
+    setVal('doc-council-no', doc.medical_registration_number);
+    setVal('doc-council-name', doc.medical_council_name);
+    setVal('doc-city', doc.city_name);
+    setVal('doc-mode', doc.consultation_modes || 'both');
     setVal('profile-image', profile.profile_image);
 
     // Direct Image Upload Handler
@@ -1029,6 +1050,10 @@ window.DoctorApp = {
           experience_years: Number(document.getElementById('doc-experience')?.value || 0),
           consultation_fee: Number(document.getElementById('doc-fee')?.value || 50),
           room_number: document.getElementById('doc-room')?.value.trim(),
+          medical_registration_number: document.getElementById('doc-council-no')?.value.trim(),
+          medical_council_name: document.getElementById('doc-council-name')?.value.trim(),
+          city_name: document.getElementById('doc-city')?.value.trim(),
+          consultation_modes: document.getElementById('doc-mode')?.value || 'both',
           profile_image: document.getElementById('profile-image')?.value.trim() || profile.profile_image
         };
         if (aboutEl) {

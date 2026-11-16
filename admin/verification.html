@@ -31,6 +31,7 @@
           <a href="hospitals.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building" class="w-4 h-4"></i> Hospitals & Clinics</a>
           <a href="doctors.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors</a>
           <a href="verification.html" class="text-sky-400 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4"></i> Verifications</a>
+          <a href="cities.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="map-pin" class="w-4 h-4"></i> Cities</a>
           <a href="patients.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="users" class="w-4 h-4"></i> Patients</a>
           <a href="appointments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
           <a href="departments.html" class="hover:text-sky-400 flex items-center gap-1.5 transition"><i data-lucide="building-2" class="w-4 h-4"></i> Departments</a>
@@ -59,7 +60,7 @@
 
     <!-- Summary KPI Cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+      <div onclick="window.VerificationAdmin.setTabAndFilter('doctors', 'pending')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-amber-400 hover:shadow-md transition">
         <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
           <i data-lucide="clock" class="w-6 h-6"></i>
         </div>
@@ -69,7 +70,7 @@
         </div>
       </div>
 
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+      <div onclick="window.VerificationAdmin.setTabAndFilter('hospitals', 'pending')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-sky-400 hover:shadow-md transition">
         <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
           <i data-lucide="building-2" class="w-6 h-6"></i>
         </div>
@@ -79,7 +80,7 @@
         </div>
       </div>
 
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+      <div onclick="window.VerificationAdmin.setTabAndFilter(window.VerificationAdmin.activeTab, 'approved')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-emerald-400 hover:shadow-md transition">
         <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
           <i data-lucide="check-circle-2" class="w-6 h-6"></i>
         </div>
@@ -89,7 +90,7 @@
         </div>
       </div>
 
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+      <div onclick="window.VerificationAdmin.setTab('audit')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-purple-400 hover:shadow-md transition">
         <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
           <i data-lucide="history" class="w-6 h-6"></i>
         </div>
@@ -104,9 +105,11 @@
     <div class="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
       <button onclick="window.VerificationAdmin.setTab('doctors')" id="tab-btn-doctors" class="px-5 py-2.5 text-xs font-bold border-b-2 border-sky-600 text-sky-600 transition flex items-center gap-1.5 whitespace-nowrap">
         <i data-lucide="stethoscope" class="w-4 h-4"></i> Doctor Verifications
+        <span id="badge-tab-doctors" class="hidden px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">0</span>
       </button>
       <button onclick="window.VerificationAdmin.setTab('hospitals')" id="tab-btn-hospitals" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
         <i data-lucide="building" class="w-4 h-4"></i> Hospital Verifications
+        <span id="badge-tab-hospitals" class="hidden px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">0</span>
       </button>
       <button onclick="window.VerificationAdmin.setTab('affiliations')" id="tab-btn-affiliations" class="px-5 py-2.5 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center gap-1.5 whitespace-nowrap">
         <i data-lucide="link-2" class="w-4 h-4"></i> Doctor-Hospital Affiliations
@@ -403,6 +406,33 @@
         document.getElementById('kpi-pending-hospitals').innerText = pendingHosps;
         document.getElementById('kpi-total-approved').innerText = approvedCount;
         document.getElementById('kpi-audit-count').innerText = this.auditLogs.filter(a => a.action && a.action.includes('verification')).length;
+
+        // Update Tab Badges
+        const docBadge = document.getElementById('badge-tab-doctors');
+        if (docBadge) {
+          if (pendingDocs > 0) {
+            docBadge.innerText = `${pendingDocs} pending`;
+            docBadge.classList.remove('hidden');
+          } else {
+            docBadge.classList.add('hidden');
+          }
+        }
+
+        const hospBadge = document.getElementById('badge-tab-hospitals');
+        if (hospBadge) {
+          if (pendingHosps > 0) {
+            hospBadge.innerText = `${pendingHosps} pending`;
+            hospBadge.classList.remove('hidden');
+          } else {
+            hospBadge.classList.add('hidden');
+          }
+        }
+      },
+
+      setTabAndFilter(tabName, status) {
+        const filterSelect = document.getElementById('verification-status-filter');
+        if (filterSelect) filterSelect.value = status;
+        this.setTab(tabName);
       },
 
       setTab(tabName) {
@@ -524,7 +554,19 @@
         });
 
         if (filtered.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No doctors matching criteria.</td></tr>`;
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="p-8 text-center text-slate-500 text-xs">
+                <div class="max-w-md mx-auto space-y-2 py-4">
+                  <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                    <i data-lucide="stethoscope" class="w-5 h-5"></i>
+                  </div>
+                  <p class="font-bold text-slate-700">No doctors matching "${statusFilter === 'all' ? 'current query' : statusFilter}"</p>
+                  <p class="text-slate-400 text-[11px]">All registered specialists may already be approved. Select <strong>All Statuses</strong> from the dropdown above to view approved doctors, or click the <strong>Hospital Verifications</strong> tab to review pending clinics.</p>
+                </div>
+              </td>
+            </tr>`;
+          if (window.lucide) window.lucide.createIcons();
           return;
         }
 
@@ -588,7 +630,19 @@
         });
 
         if (filtered.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No hospitals matching criteria.</td></tr>`;
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="p-8 text-center text-slate-500 text-xs">
+                <div class="max-w-md mx-auto space-y-2 py-4">
+                  <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                    <i data-lucide="building-2" class="w-5 h-5"></i>
+                  </div>
+                  <p class="font-bold text-slate-700">No hospitals or clinics matching "${statusFilter === 'all' ? 'current query' : statusFilter}"</p>
+                  <p class="text-slate-400 text-[11px]">Select <strong>All Statuses</strong> or adjust your search to view existing medical centers across India.</p>
+                </div>
+              </td>
+            </tr>`;
+          if (window.lucide) window.lucide.createIcons();
           return;
         }
 

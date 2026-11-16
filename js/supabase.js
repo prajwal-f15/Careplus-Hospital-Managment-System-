@@ -4793,6 +4793,193 @@ window.CarePulseDB = {
     });
 
     return { success: true, referralId, status, decisionReason };
+  },
+
+  // ============================================================================
+  // PHASE 1: HOSPITAL PORTAL & MULTI-LOCATION MANAGEMENT
+  // ============================================================================
+  async getHospitalByProfileId(profileId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('hospitals')
+          .select('*')
+          .eq('profile_id', profileId)
+          .maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {}
+    }
+    const all = await this.getHospitals({ includeUnapproved: true });
+    return all.find(h => h.profile_id === profileId || h.id === profileId) || all[0];
+  },
+
+  async updateHospital(hospitalId, updates) {
+    const sb = getSupabaseClient();
+    const cleanUpdates = {
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('hospitals')
+          .update(cleanUpdates)
+          .eq('id', hospitalId)
+          .select()
+          .maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('updateHospital note:', e.message);
+      }
+    }
+
+    if (this._coreHospitals) {
+      const idx = this._coreHospitals.findIndex(h => h.id === hospitalId);
+      if (idx >= 0) {
+        this._coreHospitals[idx] = { ...this._coreHospitals[idx], ...cleanUpdates };
+      }
+    }
+
+    return { id: hospitalId, ...cleanUpdates };
+  },
+
+  async getHospitalAppointments(hospitalId, filters = {}) {
+    const allAppointments = await this.getAppointments();
+    let hospitalAppts = allAppointments.filter(a => a.hospital_id === hospitalId);
+
+    // If appointments don't have explicit hospital_id, associate via doctor's primary hospital
+    if (hospitalAppts.length === 0) {
+      const hospitalDoctors = await this.getHospitalDoctors(hospitalId);
+      const doctorIds = new Set(hospitalDoctors.map(d => d.id));
+      hospitalAppts = allAppointments.filter(a => doctorIds.has(a.doctor_id));
+    }
+
+    if (filters.date) {
+      hospitalAppts = hospitalAppts.filter(a => a.appointment_date === filters.date);
+    }
+    if (filters.status && filters.status !== 'all') {
+      hospitalAppts = hospitalAppts.filter(a => a.status === filters.status);
+    }
+    if (filters.doctorId) {
+      hospitalAppts = hospitalAppts.filter(a => a.doctor_id === filters.doctorId);
+    }
+
+    return hospitalAppts;
+  },
+
+  async addDoctorAffiliation({ doctorId, hospitalId, consultationFee = 50, opdRoomNumber = 'Room 101', isPrimary = false, days = ['Monday', 'Wednesday', 'Friday'], timing = '09:00 - 13:00' }) {
+    const sb = getSupabaseClient();
+    const affiliationRecord = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'dh-' + Date.now(),
+      doctor_id: doctorId,
+      hospital_id: hospitalId,
+      consultation_fee: parseFloat(consultationFee) || 50,
+      opd_room_number: opdRoomNumber,
+      is_primary: isPrimary,
+      affiliation_status: 'approved',
+      created_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('doctor_hospitals')
+          .upsert({
+            doctor_id: doctorId,
+            hospital_id: hospitalId,
+            consultation_fee: parseFloat(consultationFee) || 50,
+            opd_room_number: opdRoomNumber,
+            is_primary: isPrimary,
+            affiliation_status: 'approved'
+          }, { onConflict: 'doctor_id,hospital_id' })
+          .select()
+          .maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('addDoctorAffiliation note:', e.message);
+      }
+    }
+
+    return affiliationRecord;
+  },
+
+  async removeDoctorAffiliation(doctorHospitalId) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('doctor_hospitals').delete().eq('id', doctorHospitalId);
+        return true;
+      } catch (e) {
+        console.warn('removeDoctorAffiliation note:', e.message);
+      }
+    }
+    return true;
+  },
+
+  async getAdminCities(filters = {}) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        let q = sb.from('cities').select('*').order('state_name').order('city_name');
+        if (filters.state) q = q.eq('state_name', filters.state);
+        const { data, error } = await q;
+        if (!error && Array.isArray(data) && data.length > 0) return data;
+      } catch (e) {}
+    }
+
+    if (window.LocationService && window.LocationService.getCities) {
+      return await window.LocationService.getCities();
+    }
+
+    return [
+      { id: '10000000-0000-0000-0000-000000000001', state_name: 'Maharashtra', district_name: 'Mumbai', city_name: 'Mumbai', pincode: '400001', tier: 1, is_active: true },
+      { id: '10000000-0000-0000-0000-000000000002', state_name: 'Maharashtra', district_name: 'Pune', city_name: 'Pune', pincode: '411001', tier: 1, is_active: true },
+      { id: '10000000-0000-0000-0000-000000000003', state_name: 'Maharashtra', district_name: 'Nagpur', city_name: 'Nagpur', pincode: '440001', tier: 2, is_active: true },
+      { id: '10000000-0000-0000-0000-000000000004', state_name: 'Maharashtra', district_name: 'Yavatmal', city_name: 'Yavatmal', pincode: '445001', tier: 3, is_active: true }
+    ];
+  },
+
+  async addCity(cityData) {
+    const sb = getSupabaseClient();
+    const cityRecord = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'city-' + Date.now(),
+      country: 'India',
+      state_name: cityData.state_name,
+      district_name: cityData.district_name || cityData.city_name,
+      city_name: cityData.city_name,
+      pincode: cityData.pincode || '',
+      latitude: parseFloat(cityData.latitude) || null,
+      longitude: parseFloat(cityData.longitude) || null,
+      tier: parseInt(cityData.tier, 10) || 2,
+      is_active: cityData.is_active !== false,
+      created_at: new Date().toISOString()
+    };
+
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('cities').insert([cityRecord]).select().maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('addCity note:', e.message);
+      }
+    }
+
+    return cityRecord;
+  },
+
+  async updateCity(cityId, updates) {
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('cities').update(updates).eq('id', cityId).select().maybeSingle();
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn('updateCity note:', e.message);
+      }
+    }
+    return { id: cityId, ...updates };
   }
 };
 

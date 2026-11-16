@@ -546,9 +546,10 @@ window.PatientApp = {
       if (slotsGrid) slotsGrid.innerHTML = `<div class="col-span-full py-4 text-center text-xs text-slate-400">Select a doctor to view time slots.</div>`;
     });
 
-    doctorSelect?.addEventListener('change', (e) => {
+    doctorSelect?.addEventListener('change', async (e) => {
       this.bookingState.doctorId = e.target.value;
       this.bookingState.time = null;
+      await this.updatePracticeLocations(e.target.value);
       loadSlots();
       this.updateDoctorSummaryCard(e.target.value);
     });
@@ -563,6 +564,7 @@ window.PatientApp = {
     });
 
     if (preDoctorId) {
+      this.updatePracticeLocations(preDoctorId);
       loadSlots();
       this.updateDoctorSummaryCard(preDoctorId);
     }
@@ -602,6 +604,7 @@ window.PatientApp = {
       try {
         const preReferralId = urlParams.get('referralId') || null;
         const preHospitalId = urlParams.get('hospitalId') || null;
+        const selectedHospitalId = document.getElementById('wizard-hospital-select')?.value || preHospitalId || null;
 
         const appointment = await window.CarePulseDB.createAppointment({
           patient_id: this.currentUser.id,
@@ -612,7 +615,7 @@ window.PatientApp = {
           reason: reason.trim(),
           symptoms: symptoms ? symptoms.trim() : '',
           referral_id: preReferralId,
-          hospital_id: preHospitalId
+          hospital_id: selectedHospitalId
         });
 
         // Show Booking Request Modal (Pending Doctor Confirmation)
@@ -677,6 +680,38 @@ window.PatientApp = {
         </div>
       </div>
     `;
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async updatePracticeLocations(doctorId) {
+    const locContainer = document.getElementById('wizard-practice-location-container');
+    const hospSelect = document.getElementById('wizard-hospital-select');
+    if (!locContainer || !hospSelect) return;
+
+    if (!doctorId) {
+      locContainer.classList.add('hidden');
+      return;
+    }
+
+    const affiliations = await window.CarePulseDB.getDoctorHospitals(doctorId);
+    if (!affiliations || affiliations.length === 0) {
+      locContainer.classList.add('hidden');
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const preHospId = urlParams.get('hospitalId');
+
+    hospSelect.innerHTML = affiliations.map(a => {
+      const isSelected = preHospId ? (a.hospital_id === preHospId) : a.is_primary;
+      const hospName = a.hospitals?.name || a.hospital_name || 'CarePulse Partner Network';
+      const city = a.hospitals?.city_name || 'Main Campus';
+      const room = a.opd_room_number || a.opd_room || 'OPD-1';
+      const fee = a.consultation_fee || 50;
+      return `<option value="${a.hospital_id}" ${isSelected ? 'selected' : ''}>${hospName} (${city}) • ${room} • $${fee}</option>`;
+    }).join('');
+
+    locContainer.classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
   },
 

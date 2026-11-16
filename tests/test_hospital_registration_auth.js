@@ -117,7 +117,7 @@ async function runHospitalRegistrationAuthTests() {
   // 4. Session & Dashboard Navigation
   console.log(`\n${colors.yellow}4. Session & Dashboard Navigation${colors.reset}`);
   assert('auth.js identifies hospital role from user_metadata or hospitals table', authJs.includes('const isHospitalAccount = profile.role === \'hospital\' ||'));
-  assert('auth.js redirects hospital role to hospitals directory', authJs.includes('case \'hospital\':') && authJs.includes('hospitals.html'));
+  assert('auth.js redirects hospital role to hospital portal', authJs.includes('case \'hospital\':') && authJs.includes('hospital/index.html'));
 
   console.log(`\n${colors.bold}${colors.cyan}======================================================================${colors.reset}`);
   console.log(`${colors.bold}SUMMARY: Total Assertions: ${totalChecks} | Passed: ${passedChecks} | Failed: ${totalChecks - passedChecks}${colors.reset}`);

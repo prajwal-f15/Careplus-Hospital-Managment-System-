@@ -79,7 +79,8 @@ window.Auth = {
     const user = this.getCurrentUser();
     const isInSubdir = window.location.pathname.includes('/patient/') || 
                        window.location.pathname.includes('/doctor/') || 
-                       window.location.pathname.includes('/admin/');
+                       window.location.pathname.includes('/admin/') ||
+                       window.location.pathname.includes('/hospital/');
     const loginUrl = isInSubdir ? '../login.html' : 'login.html';
 
     if (!user) {
@@ -101,7 +102,8 @@ window.Auth = {
     const currentRole = role || this.getRole();
     const isInSubdir = window.location.pathname.includes('/patient/') || 
                        window.location.pathname.includes('/doctor/') || 
-                       window.location.pathname.includes('/admin/');
+                       window.location.pathname.includes('/admin/') ||
+                       window.location.pathname.includes('/hospital/');
     const prefix = isInSubdir ? '../' : '';
 
     switch (currentRole) {
@@ -115,7 +117,8 @@ window.Auth = {
         window.location.href = `${prefix}admin/index.html`;
         break;
       case 'hospital':
-        window.location.href = `${prefix}hospitals.html`;
+      case 'hospital_admin':
+        window.location.href = `${prefix}hospital/index.html`;
         break;
       default:
         window.location.href = `${prefix}index.html`;
@@ -432,6 +435,21 @@ window.Auth = {
           role: 'patient',
           phone: '+91 9876500003',
           profile_image: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400'
+        }
+      },
+      hospital: {
+        email: 'contact@carepulse.hospital',
+        password: 'password123',
+        fallback: {
+          id: 'c0000000-0000-0000-0000-000000000001',
+          profile_id: '47f00458-7ad0-45c2-b6cd-1ae74f9f212e',
+          hospital_id: 'c0000000-0000-0000-0000-000000000001',
+          full_name: 'Dr. Rajesh Nair (Medical Director)',
+          hospital_name: 'CarePulse Central Hospital',
+          email: 'contact@carepulse.hospital',
+          role: 'hospital',
+          phone: '+91 22 4910 8000',
+          profile_image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400'
         }
       }
     };

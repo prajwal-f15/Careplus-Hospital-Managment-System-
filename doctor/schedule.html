@@ -46,6 +46,22 @@
       <p class="text-xs text-slate-500 mt-0.5">Toggle working days, set consultation start & end hours, and let the system automatically calculate 30-minute booking intervals.</p>
     </div>
 
+    <!-- Practice Hospital Location Switcher (Section 4) -->
+    <div id="doctor-hospital-schedule-card" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+          <i data-lucide="building-2" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <span class="text-xs font-bold text-slate-800 block">Practice Location / Affiliated Hospital</span>
+          <span class="text-[11px] text-slate-400">Manage location-specific OPD availability hours</span>
+        </div>
+      </div>
+      <select id="doctor-schedule-hospital-select" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+        <!-- Rendered by doctor.js -->
+      </select>
+    </div>
+
     <form id="doctor-schedule-form" class="space-y-6">
       <div id="schedule-days-container" class="space-y-3">
         <!-- Rendered by doctor.js -->

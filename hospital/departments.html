@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Departments - Hospital Portal - CarePulse</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 flex flex-col min-h-screen">
+
+  <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
+            <i data-lucide="building-2" class="w-5 h-5 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="text-lg font-black text-slate-900">Care<span class="text-sky-600">Pulse</span></span>
+            <span class="block text-[10px] uppercase font-bold tracking-widest text-sky-700">Hospital & Clinic Portal</span>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-6 text-xs font-bold text-slate-600">
+          <a href="index.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+          <a href="doctors.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="stethoscope" class="w-4 h-4"></i> Doctors & Affiliations</a>
+          <a href="appointments.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="calendar" class="w-4 h-4"></i> Appointments</a>
+          <a href="departments.html" class="text-sky-600 flex items-center gap-1.5 font-bold"><i data-lucide="network" class="w-4 h-4"></i> Departments</a>
+          <a href="profile.html" class="hover:text-sky-600 flex items-center gap-1.5 transition"><i data-lucide="shield-check" class="w-4 h-4"></i> Facility Profile</a>
+        </nav>
+
+        <div class="flex items-center gap-3">
+          <button onclick="window.Auth.logout()" class="px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-1">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-black text-slate-900">Clinical Departments & Specialty Units</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Explore active clinical wings, medical specialties, and outpatient consultation suites.</p>
+      </div>
+    </div>
+
+    <!-- Departments Grid -->
+    <div id="hosp-departments-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="col-span-full p-8 text-center text-slate-400 text-xs">Loading medical units...</div>
+    </div>
+  </main>
+
+  <footer class="py-4 text-center text-xs text-slate-400">
+    &copy; 2026 CarePulse All-India Healthcare Platform. All rights reserved.
+  </footer>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/hospital.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.HospitalPortal.init('departments');
+    });
+  </script>
+</body>
+</html>
